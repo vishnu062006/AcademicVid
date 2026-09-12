@@ -2,7 +2,7 @@
 Single source of truth for the JSON contract. Every downstream module
 (slides, tts, video, quiz, ppt) consumes this shape.
 """
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel, Field
 
 
@@ -20,8 +20,9 @@ class Section(BaseModel):
     indian_example: str
     key_points: List[str] = Field(min_length=1, max_length=5)
     misconception: str
-    narration: str  # 60-90s teacher-style spoken explanation
-    quiz: Quiz
+    narration: str
+    key_equation: Optional[str] = None   # e.g. "Fe3O4", "CaO + H2O -> Ca(OH)2 + Heat"
+    quiz: Optional[Quiz] = None
 
 
 class Chapter(BaseModel):
@@ -51,6 +52,7 @@ GEMINI_RESPONSE_SCHEMA = {
                     "key_points": {"type": "array", "items": {"type": "string"}},
                     "misconception": {"type": "string"},
                     "narration": {"type": "string"},
+                    "key_equation": {"type": "string"},
                     "quiz": {
                         "type": "object",
                         "properties": {
@@ -64,7 +66,7 @@ GEMINI_RESPONSE_SCHEMA = {
                 },
                 "required": [
                     "title", "hook", "concept", "indian_example",
-                    "key_points", "misconception", "narration", "quiz",
+                    
                 ],
             },
         },

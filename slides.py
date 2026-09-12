@@ -89,6 +89,20 @@ def render_key_points_slide(key_points: list, subject: str, out_path: str) -> st
     img.save(out_path)
     return out_path
 
+def render_equation_slide(equation: str, subject: str, out_path: str) -> str:
+    theme = SUBJECT_THEMES.get(subject, SUBJECT_THEMES["Other"])
+    img, draw = _base_slide(theme)
+    heading_font = _load_font(FONT_BOLD, 44)
+    eq_font = _load_font(FONT_BOLD, 72)
+
+    draw.text((80, 60), "Key Equation", font=heading_font, fill=theme["accent"])
+
+    w = draw.textlength(equation, font=eq_font)
+    x = max(80, (CANVAS_SIZE[0] - w) / 2)
+    y = CANVAS_SIZE[1] / 2 - 40
+    draw.text((x, y), equation, font=eq_font, fill=theme["text"])
+    img.save(out_path)
+    return out_path
 
 def render_misconception_slide(misconception: str, subject: str, out_path: str) -> str:
     theme = SUBJECT_THEMES.get(subject, SUBJECT_THEMES["Other"])
@@ -107,13 +121,6 @@ def render_misconception_slide(misconception: str, subject: str, out_path: str) 
 
 
 def build_section_slides(section, subject: str, out_dir: str) -> list:
-    """
-    Returns an ordered list of (slide_path, narration_text) pairs for one section,
-    matching PRD's Hook -> Concept -> Indian Example -> Key Points -> Misconception flow.
-    Narration audio is generated once for the whole section (tts.py), so all slides
-    in a section share the same audio clip duration split evenly unless you choose
-    to narrate per-slide (see video_builder.py for both options).
-    """
     os.makedirs(out_dir, exist_ok=True)
     slides = []
 
@@ -125,15 +132,20 @@ def build_section_slides(section, subject: str, out_dir: str) -> list:
     render_text_slide("Concept", section.concept, subject, p)
     slides.append(p)
 
-    p = os.path.join(out_dir, "03_example.png")
+    if section.key_equation:
+        p = os.path.join(out_dir, "03_equation.png")
+        render_equation_slide(section.key_equation, subject, p)
+        slides.append(p)
+
+    p = os.path.join(out_dir, "04_example.png")
     render_text_slide("Real-Life Example", section.indian_example, subject, p)
     slides.append(p)
 
-    p = os.path.join(out_dir, "04_keypoints.png")
+    p = os.path.join(out_dir, "05_keypoints.png")
     render_key_points_slide(section.key_points, subject, p)
     slides.append(p)
 
-    p = os.path.join(out_dir, "05_misconception.png")
+    p = os.path.join(out_dir, "06_misconception.png")
     render_misconception_slide(section.misconception, subject, p)
     slides.append(p)
 
