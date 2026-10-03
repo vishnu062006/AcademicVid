@@ -698,7 +698,7 @@ def run_pipeline(pdf_path: str, output_type: str, session_dir: str):
             
         elif output_type == "flashcards":
             status.write("Building Flashcards...")
-            st.session_state.flashcards = build_flashcards(chapter)
+            st.session_state.flashcards = generate_flashcards(chapter)
 
         status.update(label="GENERATION COMPLETE!", state="complete")
         
