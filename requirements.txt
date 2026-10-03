@@ -7,4 +7,4 @@ pillow>=10.4.0
 moviepy==1.0.3
 pydantic>=2.6.0
 python-dotenv==1.0.1
-numpy>=1.26.4
+numpy>=1.26.4python-pptx>=0.6.23
