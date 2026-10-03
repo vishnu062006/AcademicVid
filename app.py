@@ -253,6 +253,14 @@ def inject_custom_css() -> None:
             transform: translate(2px, 2px);
         }
 
+        div[data-testid="stExpander"] {
+    background: #FFFFFF !important;
+    border: 2px solid #000 !important;
+}
+div[data-testid="stExpander"] * {
+    color: #000000 !important;
+}
+
         /* ---------- Info / Alert Boxes ---------- */
         div[data-testid="stAlert"] {
             background-color: var(--av-yellow);
