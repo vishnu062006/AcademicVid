@@ -10,6 +10,7 @@ from pydantic import ValidationError
 
 from schema import Chapter, GEMINI_RESPONSE_SCHEMA
 from content_validators import validate_narration_length, validate_kannada_script
+from kannada_quality import fix_known_terms, find_glitches
 
 MODEL_NAME = "gemini-3.5-flash-lite"
 
@@ -218,19 +219,23 @@ def structure_chapter(chapter_text: str, language: str = "English", max_retries:
         try:
             data = json.loads(raw_text)
             chapter = Chapter.model_validate(data)
+
+            if language == "Kannada":
+                chapter = fix_known_terms(chapter)
+            
             last_valid_chapter = chapter
 
             issues = validate_narration_length(chapter, language=language)
 
             if language == "Kannada":
-              issues += validate_kannada_script(chapter)
+                issues += validate_kannada_script(chapter) + find_glitches(chapter)
             
             if issues:
-                print(f"[Warning] Narration length issues (attempt {attempt + 1}): {issues}")
+                print(f"[Warning] Content/Length issues (attempt {attempt + 1}): {issues}")
                 if attempt < max_retries:
                     continue  # try again for a better result
                 else:
-                    print("[Warning] Max retries reached — proceeding with current chapter despite length issues.")
+                    print("[Warning] Max retries reached — proceeding with current chapter despite length/content issues.")
                     return chapter
 
             return chapter

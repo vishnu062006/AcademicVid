@@ -20,7 +20,28 @@ from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN
 
-from slides import SUBJECT_THEMES
+from pptx.oxml.ns import qn
+from lxml import etree
+
+from slides import SUBJECT_THEMES, LABELS, _pretty_equation
+
+# Complex-script (Kannada) font. Nirmala UI ships with Windows 10+, which is what most
+# school PCs run; other apps substitute a Kannada-capable font automatically.
+KN_FONT = "Nirmala UI"
+
+
+def _kn(run, language):
+    """Mark a run's complex-script font so PowerPoint shapes Kannada properly."""
+    if language != "Kannada":
+        return
+    rPr = run._r.get_or_add_rPr()
+    for tag in ("a:cs", "a:ea"):
+        el = rPr.find(qn(tag))
+        if el is None:
+            el = etree.SubElement(rPr, qn(tag))
+        el.set("typeface", KN_FONT)
+    run.font.name = KN_FONT
+
 
 BLANK_LAYOUT_INDEX = 6  # "Blank" layout in the default pptx template
 TITLE_ONLY_LAYOUT_INDEX = 5  # "Title Only" layout
@@ -48,7 +69,7 @@ def _add_textbox(slide, left, top, width, height):
     return tf
 
 
-def _add_title_slide(prs: Presentation, chapter_title: str, subject: str):
+def _add_title_slide(prs: Presentation, chapter_title: str, subject: str, language: str = "English"):
     colors = _theme_colors(subject)
     layout = prs.slide_layouts[BLANK_LAYOUT_INDEX]
     slide = prs.slides.add_slide(layout)
@@ -59,6 +80,7 @@ def _add_title_slide(prs: Presentation, chapter_title: str, subject: str):
     p.alignment = PP_ALIGN.CENTER
     run = p.add_run()
     run.text = chapter_title
+    _kn(run, language)
     run.font.size = Pt(40)
     run.font.bold = True
     run.font.color.rgb = colors["accent"]
@@ -66,12 +88,14 @@ def _add_title_slide(prs: Presentation, chapter_title: str, subject: str):
     sub = tf.add_paragraph()
     sub.alignment = PP_ALIGN.CENTER
     sub_run = sub.add_run()
-    sub_run.text = subject
+    sub_run.text = LABELS.get(language, LABELS["English"])["subjects"].get(subject, subject) if language == "Kannada" else subject
+    _kn(sub_run, language)
     sub_run.font.size = Pt(20)
     sub_run.font.color.rgb = colors["text"]
 
 
-def _add_section_slide(prs: Presentation, section, subject: str):
+def _add_section_slide(prs: Presentation, section, subject: str, language: str = "English"):
+    lab = LABELS.get(language, LABELS["English"])
     colors = _theme_colors(subject)
     layout = prs.slide_layouts[BLANK_LAYOUT_INDEX]
     slide = prs.slides.add_slide(layout)
@@ -82,6 +106,7 @@ def _add_section_slide(prs: Presentation, section, subject: str):
     title_p = title_tf.paragraphs[0]
     title_run = title_p.add_run()
     title_run.text = section.title
+    _kn(title_run, language)
     title_run.font.size = Pt(30)
     title_run.font.bold = True
     title_run.font.color.rgb = colors["accent"]
@@ -91,19 +116,37 @@ def _add_section_slide(prs: Presentation, section, subject: str):
     concept_p = body_tf.paragraphs[0]
     concept_run = concept_p.add_run()
     concept_run.text = section.concept
+    _kn(concept_run, language)
     concept_run.font.size = Pt(18)
     concept_run.font.color.rgb = colors["text"]
+
+    if getattr(section, "key_equation", None):
+        eq_p = body_tf.add_paragraph()
+        eq_p.space_before = Pt(8)
+        eq_label = eq_p.add_run()
+        eq_label.text = lab["equation"] + ": "
+        eq_label.font.bold = True
+        eq_label.font.size = Pt(16)
+        eq_label.font.color.rgb = colors["accent"]
+        _kn(eq_label, language)
+        eq_run = eq_p.add_run()
+        eq_run.text = _pretty_equation(section.key_equation, subject)
+        eq_run.font.size = Pt(16)
+        eq_run.font.bold = True
+        eq_run.font.color.rgb = colors["text"]
 
     example_p = body_tf.add_paragraph()
     example_p.space_before = Pt(12)
     example_label = example_p.add_run()
-    example_label.text = "Real-life example: "
+    example_label.text = lab["example"] + ": "
+    _kn(example_label, language)
     example_label.font.bold = True
     example_label.font.size = Pt(16)
     example_label.font.color.rgb = colors["accent"]
 
     example_run = example_p.add_run()
     example_run.text = section.indian_example
+    _kn(example_run, language)
     example_run.font.size = Pt(16)
     example_run.font.color.rgb = colors["text"]
 
@@ -113,12 +156,13 @@ def _add_section_slide(prs: Presentation, section, subject: str):
         p = points_tf.paragraphs[0] if i == 0 else points_tf.add_paragraph()
         run = p.add_run()
         run.text = f"\u2022 {point}"
+        _kn(run, language)
         run.font.size = Pt(16)
         run.font.color.rgb = colors["text"]
         p.space_after = Pt(8)
 
 
-def export_chapter_to_pptx(chapter, out_path: str) -> str:
+def export_chapter_to_pptx(chapter, out_path: str, language: str = "English") -> str:
     """
     Build a .pptx from a Chapter object: one title slide + one slide per
     section (title / concept + indian_example / key_points bullets).
@@ -129,10 +173,10 @@ def export_chapter_to_pptx(chapter, out_path: str) -> str:
     prs.slide_width = Inches(10)
     prs.slide_height = Inches(7.5)
 
-    _add_title_slide(prs, chapter.chapter_title, chapter.subject)
+    _add_title_slide(prs, chapter.chapter_title, chapter.subject, language)
 
     for section in chapter.sections:
-        _add_section_slide(prs, section, chapter.subject)
+        _add_section_slide(prs, section, chapter.subject, language)
 
     prs.save(out_path)
     return out_path
