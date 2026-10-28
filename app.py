@@ -1,15 +1,10 @@
-import html
 import os
-import shutil
-import time
 import uuid
 from pathlib import Path
-from urllib.parse import quote, urlencode
 from typing import Optional, Tuple
 
 import streamlit as st
 from dotenv import load_dotenv
-import fitz  # PyMuPDF, already a dependency; used to count PDF pages
 
 from manifest import CHAPTER_MANIFEST
 from pdf_parser import extract_chapter
@@ -20,7 +15,6 @@ from video_builder import build_section_video, concatenate_section_videos
 from ppt_export import export_chapter_to_pptx
 from transcript_export import export_transcript_pdf
 from flashcards import generate_flashcards
-from strings import t, LANGUAGE_LABELS
 
 
 load_dotenv()
@@ -40,21 +34,6 @@ OUTPUT_CAPTIONS = {
 }
 SOURCE_OPTIONS = ["Library", "Upload PDF"]
 LANGUAGE_OPTIONS = ["English", "Kannada"]
-MAX_PDF_PAGES = 40
-SESSION_MAX_AGE_SECONDS = 6 * 60 * 60  # tmp_sessions folders older than this are deleted
-
-# "Report a problem" Google Form (Vishnu creates the form and gives you these).
-# How to get them: open the form -> three dots -> "Get pre-filled link" -> type any
-# dummy value in the chapter, language and output-type questions -> "Get link".
-# The copied link looks like:
-#   https://docs.google.com/forms/d/e/<FORM_ID>/viewform?usp=pp_url&entry.123=x&entry.456=y&entry.789=z
-# REPORT_FORM_URL is the part before the "?", and each entry.NNN goes in the dict below.
-REPORT_FORM_URL = "https://docs.google.com/forms/d/e/PASTE_FORM_ID_HERE/viewform"
-REPORT_FORM_ENTRIES = {
-    "chapter": "entry.0000000001",   # question: which chapter
-    "language": "entry.0000000002",  # question: lesson language
-    "output": "entry.0000000003",    # question: output type (Video, PPT, ...)
-}
 
 # ---------------------------------------------------------------------
 # Session state and filesystem helpers
@@ -97,118 +76,8 @@ def reset_pipeline() -> None:
         "final_audio_path",
         "flashcards",
         "last_error",
-        "last_error_key",
-        "last_error_params",
-        "last_error_detail",
-        "retry_state",
-        "upload_path",
-        "upload_name",
     ):
         st.session_state.pop(key, None)
-
-
-# ---------------------------------------------------------------------
-# Safety helpers: friendly errors, PDF checks, temp-folder cleanup
-# ---------------------------------------------------------------------
-class FriendlyError(Exception):
-    """An error whose message is a strings.py key, shown to the user in their language."""
-
-    def __init__(self, key: str, **params):
-        super().__init__(key)
-        self.key = key
-        self.params = params
-
-    def message(self) -> str:
-        return t(self.key, **self.params)
-
-
-_QUOTA_MARKERS = (
-    "resourceexhausted", "resource_exhausted", "quota", "rate limit",
-    "rate_limit", "too many requests", "429",
-)
-_NETWORK_MARKERS = (
-    "connectionerror", "connectionrefused", "connecttimeout", "timeouterror",
-    "timed out", "timeout", "name resolution", "getaddrinfo",
-    "name or service not known", "failed to resolve", "network is unreachable",
-    "no route to host", "max retries exceeded", "clientconnectorerror",
-    "cannot connect", "serviceunavailable", "deadlineexceeded", "503",
-)
-
-
-def classify_error(exc: BaseException):
-    """Map any exception to (strings.py key, params). Never raises."""
-    if isinstance(exc, FriendlyError):
-        return exc.key, exc.params
-    chain = []
-    seen = set()
-    current = exc
-    while current is not None and id(current) not in seen:
-        seen.add(id(current))
-        chain.append(current)
-        current = current.__cause__ or current.__context__
-    blob = " ".join(type(e).__name__ for e in chain).lower()
-    blob += " " + " ".join(str(e) for e in chain).lower()
-    if any(marker in blob for marker in _QUOTA_MARKERS):
-        return "err_quota", {}
-    if any(marker in blob for marker in _NETWORK_MARKERS):
-        return "err_network", {}
-    return "err_unexpected", {}
-
-
-def set_error(exc: BaseException, retry_state: str) -> None:
-    """Send the app to the friendly error screen. `retry_state` is where "Try again" goes."""
-    key, params = classify_error(exc)
-    st.session_state.last_error_key = key
-    st.session_state.last_error_params = params
-    st.session_state.last_error_detail = (
-        "" if isinstance(exc, FriendlyError) else "{}: {}".format(type(exc).__name__, exc)
-    )
-    st.session_state.retry_state = retry_state
-    st.session_state.app_state = "error"
-
-
-def check_pdf(path: str) -> Optional[FriendlyError]:
-    """Return a FriendlyError if the PDF cannot be opened or is too long, else None."""
-    try:
-        with fitz.open(path) as doc:
-            if doc.needs_pass:
-                return FriendlyError("err_unreadable_pdf")
-            pages = doc.page_count
-    except Exception:
-        return FriendlyError("err_unreadable_pdf")
-    if pages > MAX_PDF_PAGES:
-        return FriendlyError("err_too_long", pages=pages, limit=MAX_PDF_PAGES)
-    return None
-
-
-def cleanup_old_sessions() -> None:
-    """Delete tmp_sessions/<id> folders untouched for 6+ hours (never the current one).
-
-    Runs once per browser session, so the folder cannot grow forever.
-    """
-    if st.session_state.get("cleanup_done"):
-        return
-    st.session_state.cleanup_done = True
-    try:
-        if not os.path.isdir(BASE_TMP_DIR):
-            return
-        current = st.session_state.session_id
-        now = time.time()
-        for name in os.listdir(BASE_TMP_DIR):
-            path = os.path.join(BASE_TMP_DIR, name)
-            if name == current or not os.path.isdir(path):
-                continue
-            newest = os.path.getmtime(path)
-            for root, _dirs, files in os.walk(path):
-                for file_name in files:
-                    try:
-                        newest = max(newest, os.path.getmtime(os.path.join(root, file_name)))
-                    except OSError:
-                        pass
-            if now - newest > SESSION_MAX_AGE_SECONDS:
-                shutil.rmtree(path, ignore_errors=True)
-    except Exception:
-        pass  # cleanup must never break the app
 
 
 # ---------------------------------------------------------------------
@@ -218,7 +87,7 @@ def inject_custom_css() -> None:
     st.markdown(
         """
         <style>
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=Noto+Sans+Kannada:wght@400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
         :root {
             --bg: #08090d;
@@ -233,7 +102,7 @@ def inject_custom_css() -> None:
             --purple: #a78bfa;
         }
         html, body, [class*="css"] {
-            font-family: 'DM Sans', 'Noto Sans Kannada', 'Nirmala UI', sans-serif;
+            font-family: 'DM Sans', sans-serif;
         }
         .stApp {
             background:
@@ -273,7 +142,7 @@ def inject_custom_css() -> None:
         }
         h1, h2, h3, h4, p, label, li { color: var(--text); }
         h1, h2, h3, .brand-name, .hero-title {
-            font-family: 'Space Grotesk', 'Noto Sans Kannada', 'Nirmala UI', sans-serif !important;
+            font-family: 'Space Grotesk', sans-serif !important;
             letter-spacing: -.035em;
         }
         p, .stMarkdown, [data-testid="stCaptionContainer"] {
@@ -320,7 +189,7 @@ def inject_custom_css() -> None:
             display: flex; align-items: center; justify-content: center;
             width: 42px; height: 42px; border-radius: 13px;
             color: #0b0d0f; background: var(--accent);
-            font: 800 20px 'Space Grotesk', 'Noto Sans Kannada', 'Nirmala UI', sans-serif;
+            font: 800 20px 'Space Grotesk', sans-serif;
             box-shadow: 0 0 28px rgba(197,255,74,.13);
         }
         .brand-name { color: var(--text); font-size: 19px; font-weight: 700; }
@@ -400,7 +269,7 @@ def inject_custom_css() -> None:
             margin: 0 auto;
         }
         .section-heading {
-            color: var(--text); font-family: 'Space Grotesk', 'Noto Sans Kannada', 'Nirmala UI', sans-serif;
+            color: var(--text); font-family: 'Space Grotesk', sans-serif;
             font-size: 21px; font-weight: 700; letter-spacing: -.025em;
             margin: 6px 0 5px;
         }
@@ -472,7 +341,7 @@ def inject_custom_css() -> None:
             letter-spacing: .16em; margin-bottom: 9px;
         }
         .action-title {
-            color: var(--text); font: 600 18px 'Space Grotesk', 'Noto Sans Kannada', 'Nirmala UI', sans-serif;
+            color: var(--text); font: 600 18px 'Space Grotesk', sans-serif;
             line-height: 1.3; margin-bottom: 7px;
         }
         .action-copy { color: #9CA3AF; font-size: 13px; line-height: 1.55; }
@@ -492,7 +361,7 @@ def inject_custom_css() -> None:
             border-color: rgba(212,255,58,.55) !important;
         }
         .chapter-title {
-            color: var(--text); font: 700 18px 'Space Grotesk', 'Noto Sans Kannada', 'Nirmala UI', sans-serif;
+            color: var(--text); font: 700 18px 'Space Grotesk', sans-serif;
             line-height: 1.4; margin-top: 2px;
         }
         div[data-testid="stRadio"] > label,
@@ -780,106 +649,25 @@ def inject_custom_css() -> None:
     )
 
 
-def inject_language_css() -> None:
-    """Apply language-specific styling."""
-    css = """
-    <style>
-    .field-label {
-        color: #c7ccda;
-        font-size: .85rem;
-        font-weight: 600;
-        margin: 12px 0 6px;
-    }
-
-    [data-testid="stMainBlockContainer"] div[data-testid="stHorizontalBlock"]:has(.lang-anchor) {
-        flex-wrap: nowrap !important;
-        max-width: 360px;
-        gap: 8px !important;
-        margin: 0 0 14px;
-    }
-
-    [data-testid="stMainBlockContainer"] div[data-testid="stHorizontalBlock"]:has(.lang-anchor)
-    > div[data-testid="column"] {
-        min-width: 0 !important;
-        width: auto !important;
-        flex: 1 1 0 !important;
-    }
-
-    .hero-subtitle, .learning-promise span, .meta-pill,
-    .section-heading, .section-description, .chapter-title,
-    .chapter-hint, .format-card-caption, .action-copy, .field-label {
-        overflow-wrap: anywhere;
-        max-width: 100%;
-    }
-
-    .stButton > button, .stDownloadButton > button {
-        height: auto !important;
-        white-space: normal !important;
-    }
-
-    .stButton > button p, .stDownloadButton > button p {
-        white-space: normal !important;
-    }
-    """
-
-    if st.session_state.get("selected_language") == "Kannada":
-        css += """
-        h1, h2, h3, .brand-name, .hero-title, .section-heading,
-        .chapter-title, .action-title, .eyebrow, .step-label,
-        .brand-caption, .action-kicker, .chip {
-            letter-spacing: 0 !important;
-        }
-
-        .hero-title {
-            font-size: clamp(1.8rem, 6.5vw, 3rem) !important;
-            line-height: 1.3 !important;
-        }
-
-        .hero-subtitle, .section-description, .chapter-hint,
-        .action-copy, .format-card-caption {
-            line-height: 1.8 !important;
-        }
-        """
-
-    css += "</style>"
-    st.markdown(css, unsafe_allow_html=True)
-
-def render_language_toggle() -> None:
-    """English | ಕನ್ನಡ toggle at the top of the main page."""
-    current = st.session_state.get("selected_language", "English")
-    cols = st.columns(2, gap="small")
-    for col, language in zip(cols, LANGUAGE_OPTIONS):
-        with col:
-            if st.button(
-                LANGUAGE_LABELS[language],
-                key=f"lang_btn_{language}",
-                type="primary" if current == language else "secondary",
-                use_container_width=True,
-            ):
-                if current != language:
-                    st.session_state.selected_language = language
-                    st.rerun()
-    with cols[1]:
-        # Invisible marker so the CSS above can find this row of buttons.
-        st.markdown('<span class="lang-anchor"></span>', unsafe_allow_html=True)
-
-
 def render_brand_and_hero() -> None:
     st.markdown(
-        f"""
+        """
         <div class="hero">
-          <div class="eyebrow">{t("hero_eyebrow")}</div>
-          <div class="hero-title">{t("hero_title_1")}<br><span class="gradient-text">{t("hero_title_2")}</span></div>
-          <p class="hero-subtitle">{t("hero_subtitle")}</p>
+          <div class="eyebrow">AI-powered learning workspace</div>
+          <div class="hero-title">Learn it.<br><span class="gradient-text">See it. Remember it.</span></div>
+          <p class="hero-subtitle">
+            Turn your textbook chapter into a lesson that is easier to understand and remember.
+            Learn with clear explanations, everyday examples, and narration in English or Kannada.
+          </p>
           <div class="learning-promise">
-            <span><b>✓</b> {t("promise_1")}</span>
-            <span><b>✦</b> {t("promise_2")}</span>
-            <span><b>{t("promise_3_badge")}</b> {t("promise_3")}</span>
+            <span><b>✓</b> Simple, step-by-step explanations</span>
+            <span><b>✦</b> Examples from everyday life</span>
+            <span><b>ಕನ್ನಡ</b> Learn in English or Kannada</span>
           </div>
           <div class="hero-meta">
-            <span class="meta-pill active">{t("pill_1")}</span>
-            <span class="meta-pill">{t("pill_2")}</span>
-            <span class="meta-pill">{t("pill_3")}</span>
+            <span class="meta-pill active">PDF → structured lesson</span>
+            <span class="meta-pill">Clear explanations & examples</span>
+            <span class="meta-pill">Ready-to-use study resources</span>
           </div>
         </div>
         """,
@@ -887,186 +675,68 @@ def render_brand_and_hero() -> None:
     )
 
 
-def render_brand() -> None:
-    st.markdown(
-        f"""
+def render_sidebar() -> Tuple[str, Optional[str], object, Optional[str], Optional[str], Optional[str]]:
+    st.sidebar.markdown(
+        """
         <div class="brand-lockup">
           <div class="brand-mark">A</div>
           <div>
             <div class="brand-name">AcademicVid</div>
-            <div class="brand-caption">{t("brand_caption")}</div>
+            <div class="brand-caption">AI Learning Studio</div>
           </div>
         </div>
+        <div class="step-label">Workspace settings</div>
         """,
         unsafe_allow_html=True,
     )
-
-
-def inject_mobile_css() -> None:
-    """Phone-friendly layout: big tap targets, one column, no sideways scrolling."""
-    st.markdown(
-        """
-        <style>
-        /* Two-button rows (language, source) stay side by side even at 360px. */
-        [data-testid="stMainBlockContainer"] div[data-testid="stHorizontalBlock"]:has(.src-anchor) {
-            flex-wrap: nowrap !important; gap: 8px !important; margin: 0 0 14px;
-        }
-        [data-testid="stMainBlockContainer"] div[data-testid="stHorizontalBlock"]:has(.src-anchor)
-        > div[data-testid="column"] {
-            min-width: 0 !important; width: auto !important; flex: 1 1 0 !important;
-        }
-        [data-testid="stMainBlockContainer"] div[data-testid="stHorizontalBlock"]:has(.lang-anchor)
-        div[data-testid="stButton"] > button,
-        [data-testid="stMainBlockContainer"] div[data-testid="stHorizontalBlock"]:has(.src-anchor)
-        div[data-testid="stButton"] > button {
-            min-height: 48px !important; padding: 8px 14px !important;
-            justify-content: center !important; text-align: center !important;
-            font-size: 15px !important;
-        }
-        /* Pickers and uploader: at least ~48px tall; 16px text avoids iOS zoom-on-focus. */
-        [data-testid="stMainBlockContainer"] div[data-baseweb="select"] > div {
-            min-height: 48px !important; font-size: 16px !important;
-        }
-        ul[role="listbox"] li { min-height: 44px; display: flex; align-items: center; }
-        [data-testid="stFileUploader"] section { padding: 18px !important; }
-        [data-testid="stFileUploader"] button { min-height: 48px !important; }
-        .stDownloadButton > button, .stFormSubmitButton > button { min-height: 48px !important; }
-        .brand-lockup { margin-bottom: 16px; }
-        [data-testid="stMainBlockContainer"] img,
-        [data-testid="stMainBlockContainer"] video,
-        [data-testid="stMainBlockContainer"] audio { max-width: 100%; }
-        @media (max-width: 640px) {
-            [data-testid="stMainBlockContainer"] {
-                padding-left: 1rem !important; padding-right: 1rem !important;
-                overflow-x: hidden;
-            }
-            .hero { padding: 20px 18px !important; margin-bottom: 20px; }
-            .hero-title { font-size: 1.9rem !important; }
-            .hero-subtitle { font-size: 14px; }
-            .hero-meta, .learning-promise { display: none !important; }
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
+    st.sidebar.selectbox(
+        "Narration language",
+        LANGUAGE_OPTIONS,
+        key="selected_language",
+    )
+    st.sidebar.markdown("---")
+    st.sidebar.markdown('<div class="step-label">Source material</div>', unsafe_allow_html=True)
+    source_mode = st.sidebar.radio(
+        "Choose source",
+        SOURCE_OPTIONS,
+        horizontal=True,
+        label_visibility="collapsed",
+        key="source_mode",
     )
 
+    pdf_path = None
+    uploaded_file = None
+    selected_class = selected_subject = selected_chapter = None
 
-def _field_label(text: str) -> None:
-    st.markdown(f'<div class="field-label">{text}</div>', unsafe_allow_html=True)
-
-
-def _index_of(options, value) -> int:
-    return options.index(value) if value in options else 0
-
-
-def render_source_picker() -> None:
-    """Chapter picker + PDF upload on the main page (phones hide the sidebar).
-
-    Streamlit 1.31 deletes a widget's state when it is not drawn, and this picker is only
-    drawn on the first screen. So every choice is also stored in plain session keys
-    (pick_class, pick_subject, pick_chapter, upload_path, upload_name); get_selection()
-    reads those on every screen. Widgets keep a fixed English label + key + collapsed
-    label, and we draw the translated label, so switching language never resets them.
-    """
-    cols = st.columns(2, gap="small")
-    for col, mode, label_key in zip(cols, SOURCE_OPTIONS, ("source_library", "source_upload")):
-        with col:
-            if st.button(
-                t(label_key),
-                key=f"source_btn_{mode}",
-                type="primary" if st.session_state.source_mode == mode else "secondary",
-                use_container_width=True,
-            ):
-                if st.session_state.source_mode != mode:
-                    st.session_state.source_mode = mode
-                    st.rerun()
-    with cols[1]:
-        # Invisible marker so the CSS can find this row of buttons.
-        st.markdown('<span class="src-anchor"></span>', unsafe_allow_html=True)
-
-    if st.session_state.source_mode == "Library":
+    if source_mode == "Library":
         classes = list(CHAPTER_MANIFEST.keys())
         if not classes:
-            st.warning(t("lib_empty"))
-            return
-        prev_subject = st.session_state.get("pick_subject")
-        prev_chapter = st.session_state.get("pick_chapter")
-        st.session_state.pick_subject = None
-        st.session_state.pick_chapter = None
-
-        _field_label(t("lib_class"))
-        selected_class = st.selectbox(
-            "Class / grade", classes,
-            index=_index_of(classes, st.session_state.get("pick_class")),
-            key="sel_class", label_visibility="collapsed",
-        )
-        st.session_state.pick_class = selected_class
-
-        subjects = list(CHAPTER_MANIFEST.get(selected_class, {}).keys())
-        if not subjects:
-            st.info(t("lib_no_subjects"))
-            return
-        _field_label(t("lib_subject"))
-        selected_subject = st.selectbox(
-            "Subject", subjects,
-            index=_index_of(subjects, prev_subject),
-            key="sel_subject", label_visibility="collapsed",
-        )
-        st.session_state.pick_subject = selected_subject
-
-        chapters = list(CHAPTER_MANIFEST[selected_class].get(selected_subject, {}).keys())
-        if not chapters:
-            st.info(t("lib_no_chapters"))
-            return
-        _field_label(t("lib_chapter"))
-        selected_chapter = st.selectbox(
-            "Chapter", chapters,
-            index=_index_of(chapters, prev_chapter),
-            key="sel_chapter", label_visibility="collapsed",
-        )
-        st.session_state.pick_chapter = selected_chapter
-    else:
-        _field_label(t("upload_label"))
-        uploaded_file = st.file_uploader(
-            "Chapter PDF", type=["pdf"], key="pdf_upload", label_visibility="collapsed"
-        )
-        # Streamlit's own "Drag and drop file here" text stays English in 1.31.1,
-        # so explain it in the selected language right next to the uploader.
-        st.caption(t("upload_hint"))
-        if uploaded_file is not None:
-            saved_path = save_uploaded_pdf(uploaded_file, get_session_dir())
-            problem = check_pdf(saved_path)
-            if problem is None:
-                st.session_state.upload_path = saved_path
-                st.session_state.upload_name = uploaded_file.name
+            st.sidebar.warning("The library is empty. Upload a PDF to get started.")
+        else:
+            selected_class = st.sidebar.selectbox("Class / grade", classes)
+            subjects = list(CHAPTER_MANIFEST.get(selected_class, {}).keys())
+            if subjects:
+                selected_subject = st.sidebar.selectbox("Subject", subjects)
+                chapters = list(CHAPTER_MANIFEST[selected_class].get(selected_subject, {}).keys())
+                if chapters:
+                    selected_chapter = st.sidebar.selectbox("Chapter", chapters)
+                    pdf_path = CHAPTER_MANIFEST[selected_class][selected_subject][selected_chapter]
+                else:
+                    st.sidebar.info("No chapters are available for this subject yet.")
             else:
-                st.error(problem.message())
-                st.session_state.pop("upload_path", None)
-                st.session_state.pop("upload_name", None)
-                try:
-                    os.remove(saved_path)
-                except OSError:
-                    pass
-        if st.session_state.get("upload_name"):
-            st.caption(t("upload_selected", name=st.session_state.upload_name))
+                st.sidebar.info("No subjects are available for this class yet.")
+    else:
+        uploaded_file = st.sidebar.file_uploader(
+            "Drop in a chapter PDF",
+            type=["pdf"],
+            help="Choose a PDF chapter to turn into a learning resource.",
+        )
+        if uploaded_file is not None:
+            st.sidebar.caption(f"Selected: {uploaded_file.name}")
 
-
-def get_selection():
-    """Return (source, pdf_path, class, subject, chapter, upload_name) from stored picks."""
-    source = st.session_state.source_mode
-    if source == "Library":
-        cls = st.session_state.get("pick_class")
-        subject = st.session_state.get("pick_subject")
-        chapter = st.session_state.get("pick_chapter")
-        try:
-            path = CHAPTER_MANIFEST[cls][subject][chapter]
-        except (KeyError, TypeError):
-            path = None
-        return source, path, cls, subject, chapter, None
-    path = st.session_state.get("upload_path")
-    if path and not os.path.exists(path):
-        path = None
-    return source, path, None, None, None, st.session_state.get("upload_name")
+    st.sidebar.markdown("---")
+    st.sidebar.caption("Built for clearer learning, one chapter at a time.")
+    return source_mode, pdf_path, uploaded_file, selected_class, selected_subject, selected_chapter
 
 
 # ---------------------------------------------------------------------
@@ -1074,166 +744,106 @@ def get_selection():
 # ---------------------------------------------------------------------
 def execute_ai_structuring(pdf_path: str, language: str) -> None:
     try:
-        with st.status(t("status_analyzing"), expanded=True) as status:
-            status.write(t("status_extract"))
+        with st.status("Analyzing your chapter…", expanded=True) as status:
+            status.write("Extracting readable text from the PDF.")
             extracted = extract_chapter(pdf_path)
             clean_text = extracted.get("clean_text", "")
             if not clean_text.strip():
-                raise FriendlyError("err_no_text")
-            status.write(t("status_structure"))
+                raise ValueError("No readable text was found. Try a text-based PDF instead of a scanned document.")
+            status.write("Structuring the chapter into a lesson with AI.")
             chapter = structure_chapter(clean_text, language=language)
             if not getattr(chapter, "sections", None):
-                raise FriendlyError("err_no_sections")
+                raise ValueError("The AI did not return any lesson sections. Please try again.")
             st.session_state.chapter = chapter
-            st.session_state.lesson_language = language
             # Keep the experience one-click: prepare the lesson, then generate
             # the selected resource without asking the learner to approve a script.
-            if st.session_state.get("review_enabled"):
-                st.session_state.app_state = "review"
-                status.update(label=t("status_lesson_review"), state="complete")
-            else:
-                st.session_state.app_state = "generating_media"
-                status.update(label=t("status_lesson_ready"), state="complete")
+            st.session_state.app_state = "generating_media"
+            status.update(label="Lesson prepared — starting generation", state="complete")
     except Exception as exc:
-        set_error(exc, retry_state="choose_output")
-
-
-SUBJECT_OPTIONS = ["Science", "Math", "Social Science", "English", "Other"]
-
-
-def _review_label(key: str) -> None:
-    st.markdown(f'<div class="field-label">{t(key)}</div>', unsafe_allow_html=True)
-
-
-def _chapter_is_valid(chapter) -> bool:
-    """Re-run the Pydantic checks on the edited chapter (works with v1 and v2)."""
-    try:
-        cls = type(chapter)
-        data = chapter.model_dump() if hasattr(chapter, "model_dump") else chapter.dict()
-        if hasattr(cls, "model_validate"):
-            cls.model_validate(data)
-        else:
-            cls.parse_obj(data)
-        return True
-    except Exception:
-        return False
+        st.session_state.last_error = str(exc)
+        st.error(f"Could not prepare the script: {exc}")
 
 
 def render_review_ui(output_type: str) -> None:
     chapter = st.session_state.chapter
     if chapter is None:
-        st.error(t("review_no_chapter"))
-        if st.button(t("review_back"), type="primary"):
+        st.error("No chapter is loaded. Start again from the workspace.")
+        if st.button("Back to setup", type="primary"):
             reset_pipeline()
             st.rerun()
         return
 
-    st.markdown(f'<div class="step-label">{t("review_step")}</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="section-heading">{t("review_heading")}</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="section-description">{t("review_desc")}</div>', unsafe_allow_html=True)
-    st.info(t("review_info"))
+    st.markdown('<div class="step-label">Step 02 / Refine</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-heading">Review your lesson script</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="section-description">Make the content yours before generating the final learning resource.</div>',
+        unsafe_allow_html=True,
+    )
+    st.info("Review the AI-generated content and correct anything that needs attention before continuing.")
 
-    # Widgets use a fixed label + key + collapsed label, and we draw the translated label,
-    # so switching language never wipes what the teacher has typed (Streamlit 1.31 resets
-    # a widget whose label changes). Edits are applied to the chapter only on submit.
     with st.form("review_form"):
-        _review_label("review_chapter_title")
+        # Some Chapter schema versions contain only sections, so don't assume
+        # top-level title/subject attributes exist on the Pydantic model.
         chapter_title = st.text_input(
-            "chapter_title",
-            value=str(getattr(chapter, "chapter_title", "") or ""),
-            key="rv_chapter_title",
-            label_visibility="collapsed",
+            "Chapter title",
+            value=str(getattr(chapter, "title", "") or ""),
+            help="Optional title for the lesson.",
         )
-        subjects = list(SUBJECT_OPTIONS)
-        current_subject = str(getattr(chapter, "subject", "") or "Other")
-        if current_subject not in subjects:
-            subjects.append(current_subject)
-        _review_label("review_subject")
-        chapter_subject = st.selectbox(
-            "subject",
-            subjects,
-            index=subjects.index(current_subject),
-            key="rv_subject",
-            label_visibility="collapsed",
+        chapter_subject = st.text_input(
+            "Subject",
+            value=str(getattr(chapter, "subject", "") or ""),
+            help="Optional subject label.",
         )
         st.markdown("---")
 
-        edits = []
         for i, section in enumerate(chapter.sections):
-            with st.expander(f"{t('review_section')} {i + 1}  ·  {section.title}", expanded=(i == 0)):
-                _review_label("review_section_title")
-                title = st.text_input(
-                    "section_title", value=section.title, key=f"title_{i}", label_visibility="collapsed"
+            with st.expander(f"SECTION {i + 1}  ·  {section.title}", expanded=(i == 0)):
+                section.title = st.text_input(
+                    "Section title", value=section.title, key=f"title_{i}"
                 )
                 left, right = st.columns(2)
                 with left:
-                    _review_label("review_hook")
-                    hook = st.text_area(
-                        "hook", value=section.hook, height=100, key=f"hook_{i}", label_visibility="collapsed"
-                    )
-                    _review_label("review_misconception")
-                    misconception = st.text_area(
-                        "misconception", value=section.misconception, height=110, key=f"misc_{i}",
-                        label_visibility="collapsed",
+                    section.hook = st.text_area("Opening hook", value=section.hook, height=100, key=f"hook_{i}")
+                    section.misconception = st.text_area(
+                        "Common misconception", value=section.misconception, height=110, key=f"misc_{i}"
                     )
                 with right:
-                    _review_label("review_concept")
-                    concept = st.text_area(
-                        "concept", value=section.concept, height=100, key=f"concept_{i}",
-                        label_visibility="collapsed",
+                    section.concept = st.text_area("Core concept", value=section.concept, height=100, key=f"concept_{i}")
+                    section.indian_example = st.text_area(
+                        "Real-world example", value=section.indian_example, height=110, key=f"ex_{i}"
                     )
-                    _review_label("review_example")
-                    indian_example = st.text_area(
-                        "example", value=section.indian_example, height=110, key=f"ex_{i}",
-                        label_visibility="collapsed",
-                    )
-                _review_label("review_key_points")
-                key_points_text = st.text_area(
-                    "key_points", value="\n".join(section.key_points), height=120, key=f"kps_{i}",
-                    label_visibility="collapsed",
+                section.key_points = [
+                    item.strip()
+                    for item in st.text_area(
+                        "Key points (one per line)",
+                        value="\n".join(section.key_points),
+                        height=120,
+                        key=f"kps_{i}",
+                    ).splitlines()
+                    if item.strip()
+                ]
+                section.narration = st.text_area(
+                    "Narration script", value=section.narration, height=160, key=f"narration_{i}"
                 )
-                _review_label("review_narration")
-                narration = st.text_area(
-                    "narration", value=section.narration, height=160, key=f"narration_{i}",
-                    label_visibility="collapsed",
-                )
-            edits.append(
-                {
-                    "title": title,
-                    "hook": hook,
-                    "misconception": misconception,
-                    "concept": concept,
-                    "indian_example": indian_example,
-                    "key_points": [line.strip() for line in key_points_text.splitlines() if line.strip()],
-                    "narration": narration,
-                }
-            )
 
         st.markdown("---")
         left, right = st.columns([3, 1])
         with left:
             submitted = st.form_submit_button(
-                t("review_continue", format=t(f"format_{output_type}")),
+                f"Continue to {output_type.replace('_', ' ').title()}",
                 type="primary",
                 use_container_width=True,
             )
         with right:
-            cancelled = st.form_submit_button(t("review_cancel"), use_container_width=True)
+            cancelled = st.form_submit_button("Cancel", use_container_width=True)
 
     if submitted:
-        try:
-            for section, edit in zip(chapter.sections, edits):
-                for field, value in edit.items():
-                    setattr(section, field, value)
-            chapter.chapter_title = chapter_title
+        # Preserve edited metadata only when the current Chapter model supports it.
+        # Older schemas may not define these top-level fields.
+        if hasattr(chapter, "title"):
+            chapter.title = chapter_title
+        if hasattr(chapter, "subject"):
             chapter.subject = chapter_subject
-            valid = _chapter_is_valid(chapter)
-        except Exception:
-            valid = False
-        if not valid:
-            st.error(t("review_invalid"))
-            return
-        # Every output (video, PPT, notes PDF, flashcards) reads this same edited object.
         st.session_state.chapter = chapter
         st.session_state.app_state = "generating_media"
         st.rerun()
@@ -1245,26 +855,26 @@ def render_review_ui(output_type: str) -> None:
 def execute_media_generation(output_type: str, session_dir: str) -> None:
     chapter = st.session_state.chapter
     if chapter is None:
-        st.error(t("err_no_chapter"))
+        st.error("No chapter is available to generate.")
         reset_pipeline()
         return
 
     selected_language = st.session_state.get("selected_language", "English")
     narration_voice = VOICE_KN if selected_language == "Kannada" else VOICE_EN
-    language_name = t(f"lang_name_{selected_language}")
 
     try:
-        with st.status(t("status_building"), expanded=True) as status:
+        with st.status("Building your learning resource…", expanded=True) as status:
             if output_type == "video":
                 section_video_paths = []
-                total = len(chapter.sections)
 
                 for i, section in enumerate(chapter.sections):
                     section_dir = os.path.join(session_dir, f"section_{i}")
                     slide_dir = os.path.join(section_dir, "slides")
                     os.makedirs(section_dir, exist_ok=True)
 
-                    status.write(t("status_slides", i=i + 1, n=total))
+                    status.write(
+                        f"Section {i + 1}/{len(chapter.sections)} · Building teaching slides"
+                    )
                     slide_paths = build_section_slides(
                         section,
                         chapter.subject,
@@ -1273,7 +883,9 @@ def execute_media_generation(output_type: str, session_dir: str) -> None:
                         chapter_title=chapter.chapter_title,
                     )
 
-                    status.write(t("status_narration", i=i + 1, n=total))
+                    status.write(
+                        f"Section {i + 1}/{len(chapter.sections)} · Synthesizing narration"
+                    )
                     audio_path = os.path.join(section_dir, "narration.mp3")
                     synthesize_narration(
                         section.narration,
@@ -1281,18 +893,20 @@ def execute_media_generation(output_type: str, session_dir: str) -> None:
                         voice=narration_voice,
                     )
 
-                    status.write(t("status_assembling", i=i + 1, n=total))
+                    status.write(
+                        f"Section {i + 1}/{len(chapter.sections)} · Assembling video"
+                    )
                     video_path = os.path.join(section_dir, "video.mp4")
                     build_section_video(slide_paths, audio_path, video_path)
                     section_video_paths.append(video_path)
 
                 final_path = os.path.join(session_dir, "final_output.mp4")
-                status.write(t("status_combining"))
+                status.write("Combining all lesson sections.")
                 concatenate_section_videos(section_video_paths, final_path)
                 st.session_state.final_video_path = final_path
 
             elif output_type == "ppt":
-                status.write(t("status_ppt"))
+                status.write("Creating your editable presentation.")
                 path = os.path.join(session_dir, "chapter.pptx")
                 export_chapter_to_pptx(
                     chapter,
@@ -1314,7 +928,9 @@ def execute_media_generation(output_type: str, session_dir: str) -> None:
                 )
 
                 if narration_text:
-                    status.write(t("status_audio", language=language_name))
+                    status.write(
+                        f"Creating {selected_language} narration audio."
+                    )
                     audio_path = os.path.join(
                         session_dir, "chapter_narration.mp3"
                     )
@@ -1328,13 +944,15 @@ def execute_media_generation(output_type: str, session_dir: str) -> None:
                         st.session_state.final_audio_path = audio_path
                     except Exception as audio_exc:
                         st.session_state.pop("final_audio_path", None)
-                        audio_key, audio_params = classify_error(audio_exc)
-                        status.write(t("ppt_audio_failed", error=t(audio_key, **audio_params)))
+                        status.write(
+                            "Presentation is ready, but narration audio "
+                            f"could not be generated: {audio_exc}"
+                        )
                 else:
                     st.session_state.pop("final_audio_path", None)
 
             elif output_type == "transcript":
-                status.write(t("status_notes"))
+                status.write("Formatting your study notes as a PDF.")
                 path = os.path.join(session_dir, "transcript.pdf")
                 export_transcript_pdf(
                     chapter,
@@ -1344,80 +962,26 @@ def execute_media_generation(output_type: str, session_dir: str) -> None:
                 st.session_state.final_transcript_path = path
 
             elif output_type == "flashcards":
-                status.write(t("status_flashcards"))
+                status.write("Generating question-and-answer flashcards.")
                 st.session_state.flashcards = generate_flashcards(
                     chapter,
                     language=selected_language,
                 )
 
-            status.update(label=t("status_ready"), state="complete")
+            status.update(label="Your resource is ready", state="complete")
             st.session_state.app_state = "complete"
 
     except Exception as exc:
-        set_error(exc, retry_state="generating_media")
-
-
-def report_form_is_set_up() -> bool:
-    return "PASTE_FORM_ID_HERE" not in REPORT_FORM_URL
-
-
-def build_report_url(chapter_label: str, language: str, output_label: str) -> str:
-    """Pre-filled Google Form link. Values are URL-encoded; nothing is stored by the app."""
-    values = {
-        REPORT_FORM_ENTRIES["chapter"]: chapter_label,
-        REPORT_FORM_ENTRIES["language"]: language,
-        REPORT_FORM_ENTRIES["output"]: output_label,
-    }
-    return REPORT_FORM_URL + "?usp=pp_url&" + urlencode(values, quote_via=quote)
-
-
-def render_report_button(output_type: str) -> None:
-    """'Report a problem with this lesson': opens the pre-filled form in a new tab."""
-    source, _path, selected_class, selected_subject, selected_chapter, upload_name = get_selection()
-    if source == "Library":
-        chapter_label = " / ".join(x for x in (selected_class, selected_subject, selected_chapter) if x)
-    else:
-        chapter_label = "Uploaded PDF: " + (upload_name or "")
-    # The language the lesson was actually made in (the UI language may have changed since).
-    language = st.session_state.get("lesson_language", st.session_state.get("selected_language", "English"))
-    output_label = next((label for label, oid in OUTPUT_OPTIONS.items() if oid == output_type), output_type)
-
-    if not report_form_is_set_up():
-        st.button(
-            t("report_button"),
-            disabled=True,
-            help=t("report_not_ready"),
-            use_container_width=True,
-            key="report_disabled",
-        )
-        return
-
-    url = html.escape(build_report_url(chapter_label, language, output_label), quote=True)
-    st.markdown(
-        """
-        <style>
-        a.report-link {
-            display: block; box-sizing: border-box; width: 100%; text-align: center;
-            min-height: 48px; padding: 13px 16px; margin: 8px 0 12px;
-            border: 1px solid var(--border); border-radius: 11px;
-            background: #171a22; color: var(--text) !important;
-            font-weight: 700; text-decoration: none !important;
-            overflow-wrap: anywhere;
-        }
-        a.report-link:hover { border-color: rgba(212,255,58,.55); }
-        </style>
-        """
-        f'<a class="report-link" href="{url}" target="_blank" rel="noopener noreferrer">'
-        f'⚑&nbsp; {t("report_button")}</a>',
-        unsafe_allow_html=True,
-    )
+        st.session_state.last_error = str(exc)
+        st.session_state.app_state = "error"
+        st.error(f"Generation failed: {exc}")
 
 
 def render_completion(output_type: str) -> None:
-    st.markdown(f'<div class="step-label">{t("done_step")}</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="section-heading">{t("done_heading")}</div>', unsafe_allow_html=True)
+    st.markdown('<div class="step-label">Step 03 / Ready</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-heading">Your learning resource is ready</div>', unsafe_allow_html=True)
     st.markdown(
-        f'<div class="section-description">{t("done_desc")}</div>',
+        '<div class="section-description">Open it here or download a copy for your next study session.</div>',
         unsafe_allow_html=True,
     )
 
@@ -1427,37 +991,36 @@ def render_completion(output_type: str) -> None:
             st.video(path)
             with open(path, "rb") as file:
                 st.download_button(
-                    t("dl_video"),
+                    "Download lesson video",
                     data=file,
                     file_name="academicvid_lesson.mp4",
                     mime="video/mp4",
                     use_container_width=True,
                 )
         else:
-            st.warning(t("warn_video_missing"))
+            st.warning("The video file could not be found in this session.")
 
     elif output_type == "ppt":
         path = st.session_state.get("final_ppt_path")
         if path and os.path.exists(path):
             with open(path, "rb") as file:
                 st.download_button(
-                    t("dl_ppt"),
+                    "Download editable presentation",
                     data=file,
                     file_name="academicvid_lesson.pptx",
                     mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
                     use_container_width=True,
                 )
         else:
-            st.warning(t("warn_ppt_missing"))
+            st.warning("The presentation file could not be found in this session.")
 
         audio_path = st.session_state.get("final_audio_path")
         if audio_path and os.path.exists(audio_path):
-            st.markdown(f"#### {t('audio_heading')}")
+            st.markdown("#### Lesson narration audio")
             st.audio(audio_path)
-            audio_language = st.session_state.get("selected_language", "English")
             with open(audio_path, "rb") as audio_file:
                 st.download_button(
-                    t("dl_audio", language=t(f"lang_name_{audio_language}")),
+                    f"Download {st.session_state.get('selected_language', 'English')} narration (MP3)",
                     data=audio_file,
                     file_name="academicvid_narration.mp3",
                     mime="audio/mpeg",
@@ -1469,60 +1032,42 @@ def render_completion(output_type: str) -> None:
         if path and os.path.exists(path):
             with open(path, "rb") as file:
                 st.download_button(
-                    t("dl_transcript"),
+                    "Download transcript PDF",
                     data=file,
                     file_name="academicvid_study_notes.pdf",
                     mime="application/pdf",
                     use_container_width=True,
                 )
         else:
-            st.warning(t("warn_transcript_missing"))
+            st.warning("The transcript PDF could not be found in this session.")
 
     elif output_type == "flashcards":
         cards = st.session_state.get("flashcards") or []
         if cards:
-            st.caption(t("cards_count", count=len(cards)))
+            st.caption(f"{len(cards)} cards generated")
             for i, card in enumerate(cards, start=1):
-                front = card.get("front", t("card_default_front"))
-                with st.expander(t("card_title", num=f"{i:02d}", front=front)):
+                with st.expander(f"CARD {i:02d}  ·  {card.get('front', 'Question')}"):
                     st.write(card.get("back", ""))
         else:
-            st.warning(t("warn_no_flashcards"))
+            st.warning("No flashcards were returned for this chapter.")
 
     chapter = st.session_state.get("chapter")
     if chapter:
-        with st.expander(t("view_data")):
+        with st.expander("View structured lesson data"):
             st.json(chapter.model_dump() if hasattr(chapter, "model_dump") else chapter)
 
-    render_report_button(output_type)
     st.markdown("")
-    if st.button(t("btn_another"), type="primary", use_container_width=True):
+    if st.button("Create another lesson", type="primary", use_container_width=True):
         reset_pipeline()
         st.rerun()
 
 
 def render_error_state() -> None:
-    st.markdown(f'<div class="section-heading">{t("error_heading")}</div>', unsafe_allow_html=True)
-    key = st.session_state.get("last_error_key", "err_unexpected")
-    params = st.session_state.get("last_error_params", {})
-    st.error(t(key, **params))
-    detail = st.session_state.get("last_error_detail")
-    if detail:
-        with st.expander(t("tech_details")):
-            st.code(detail)
-
-    left, right = st.columns(2)
-    with left:
-        if st.button(t("btn_try_again"), type="primary", use_container_width=True):
-            target = st.session_state.get("retry_state", "choose_output")
-            if target == "generating_media" and st.session_state.get("chapter") is None:
-                target = "choose_output"
-            st.session_state.app_state = target
-            st.rerun()
-    with right:
-        if st.button(t("btn_back_workspace"), use_container_width=True):
-            reset_pipeline()
-            st.rerun()
+    st.markdown('<div class="section-heading">Something went wrong</div>', unsafe_allow_html=True)
+    st.error(st.session_state.get("last_error", "An unexpected error occurred."))
+    if st.button("Back to workspace", type="primary"):
+        reset_pipeline()
+        st.rerun()
 
 
 # ---------------------------------------------------------------------
@@ -1533,58 +1078,59 @@ def main() -> None:
         page_title="AcademicVid — AI Learning Studio",
         page_icon="A",
         layout="wide",
-        initial_sidebar_state="collapsed",
+        initial_sidebar_state="expanded",
     )
     init_session_state()
-    cleanup_old_sessions()
     inject_custom_css()
-    inject_language_css()
-    inject_mobile_css()
-    render_brand()
-    render_language_toggle()
     render_brand_and_hero()
 
-    source, pdf_path, selected_class, selected_subject, selected_chapter, upload_name = get_selection()
+    source, library_pdf_path, uploaded_file, selected_class, selected_subject, selected_chapter = render_sidebar()
+    pdf_path = None
+
+    if source == "Library":
+        pdf_path = library_pdf_path
+    elif uploaded_file is not None:
+        pdf_path = save_uploaded_pdf(uploaded_file, get_session_dir())
 
     if st.session_state.app_state == "setup":
-        # STEP 1 — choose a chapter or upload a PDF (all on the main page).
+        # STEP 1 — choose a chapter or upload a PDF.
         st.markdown('<div class="setup-content">', unsafe_allow_html=True)
-        st.markdown(f'<div class="step-label">{t("setup_step")}</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="section-heading">{t("setup_heading")}</div>', unsafe_allow_html=True)
+        st.markdown('<div class="step-label">Step 01 / Choose your material</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-heading">What do you want to learn today?</div>', unsafe_allow_html=True)
         st.markdown(
-            f'<div class="section-description">{t("setup_desc")}</div>',
+            '<div class="section-description">Choose a chapter from the library or upload your own PDF. '
+            'We’ll decide how to study it in the next step.</div>',
             unsafe_allow_html=True,
         )
-
-        render_source_picker()
-        # Read the choice again: the picker above may have just changed it.
-        source, pdf_path, selected_class, selected_subject, selected_chapter, upload_name = get_selection()
 
         if pdf_path:
             if source == "Library":
                 chips = (
-                    f'<span class="chip chip-accent">{t("chip_library")}</span>'
-                    f'<span class="chip">{html.escape(selected_class or "")}</span>'
-                    f'<span class="chip">{html.escape(selected_subject or "")}</span>'
+                    '<span class="chip chip-accent">Library</span>'
+                    f'<span class="chip">{selected_class or ""}</span>'
+                    f'<span class="chip">{selected_subject or ""}</span>'
                 )
-                title = html.escape(selected_chapter or Path(pdf_path).stem)
+                title = selected_chapter or Path(pdf_path).stem
             else:
-                chips = f'<span class="chip chip-accent">{t("chip_pdf")}</span>'
-                title = html.escape(upload_name or Path(pdf_path).name)
+                chips = '<span class="chip chip-accent">Your PDF</span>'
+                title = uploaded_file.name if uploaded_file is not None else Path(pdf_path).name
 
             st.markdown(
                 f'<div class="chapter-card"><div class="chip-row">{chips}</div>'
                 f'<div class="chapter-title">{title}</div>'
-                f'<div class="chapter-hint">{t("chapter_ready")}</div></div>',
+                f'<div class="chapter-hint">Great choice! Your learning material is ready.</div></div>',
                 unsafe_allow_html=True,
             )
-            if st.button(t("btn_next_format"), type="primary", use_container_width=True):
-                st.session_state.app_state = "choose_output"
-                st.rerun()
+            _, next_col = st.columns([2, 1])
+            with next_col:
+                if st.button("Next: Choose a learning format  →", type="primary", use_container_width=True):
+                    st.session_state.app_state = "choose_output"
+                    st.rerun()
         else:
             st.markdown(
-                f'<div class="panel"><div class="section-heading">{t("setup_panel_title")}</div>'
-                f'<div class="section-description">{t("setup_panel_desc")}</div></div>',
+                '<div class="panel"><div class="section-heading">Start with a chapter or PDF</div>'
+                '<div class="section-description">Use the Source Material controls in the sidebar to choose a library chapter '
+                'or upload your own PDF. Your selected material will appear here.</div></div>',
                 unsafe_allow_html=True,
             )
         st.markdown('</div>', unsafe_allow_html=True)
@@ -1592,16 +1138,15 @@ def main() -> None:
     elif st.session_state.app_state == "choose_output":
         # STEP 2 — choose one output format, then generate it directly.
         st.markdown('<div class="setup-content">', unsafe_allow_html=True)
-        st.markdown(f'<div class="step-label">{t("choose_step")}</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="section-heading">{t("choose_heading")}</div>', unsafe_allow_html=True)
+        st.markdown('<div class="step-label">Step 02 / Choose your learning style</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-heading">How would you like to learn?</div>', unsafe_allow_html=True)
         st.markdown(
-            f'<div class="section-description">{t("choose_desc")}</div>',
+            '<div class="section-description">Pick one format. You can go back and change your chapter at any time.</div>',
             unsafe_allow_html=True,
         )
 
         # Use Streamlit columns + buttons rather than a vertical radio widget.
-        # Columns stack into one column on phones.
-        # OUTPUT_OPTIONS keys stay English: they are internal ids, not display text.
+        # This guarantees a real 2 × 2 layout across Streamlit versions.
         labels = list(OUTPUT_OPTIONS.keys())
         if st.session_state.selected_output_label not in labels:
             st.session_state.selected_output_label = labels[0]
@@ -1610,54 +1155,55 @@ def main() -> None:
             card_cols = st.columns(2, gap="large")
             for offset, card_col in enumerate(card_cols):
                 label = labels[row_start + offset]
-                output_id = OUTPUT_OPTIONS[label]
                 with card_col:
                     is_selected = st.session_state.selected_output_label == label
                     if st.button(
-                        t(f"format_{output_id}"),
-                        key=f"format_card_{output_id}",
+                        label,
+                        key=f"format_card_{OUTPUT_OPTIONS[label]}",
                         type="primary" if is_selected else "secondary",
                         use_container_width=True,
                     ):
                         st.session_state.selected_output_label = label
-                        st.session_state.last_generated_type = output_id
+                        st.session_state.last_generated_type = OUTPUT_OPTIONS[label]
                         st.rerun()
                     st.markdown(
-                        f'<div class="format-card-caption">{t(f"format_{output_id}_desc")}</div>',
+                        f'<div class="format-card-caption">{OUTPUT_CAPTIONS[label]}</div>',
                         unsafe_allow_html=True,
                     )
 
         selected_label = st.session_state.selected_output_label
-        selected_output = OUTPUT_OPTIONS[selected_label]
-        st.session_state.last_generated_type = selected_output
+        st.session_state.last_generated_type = OUTPUT_OPTIONS[selected_label]
+        selected_caption = OUTPUT_CAPTIONS[selected_label]
         st.markdown(
-            f'<div class="panel"><div class="step-label">{t("selected_format")}</div>'
-            f'<div class="section-heading">{t(f"format_{selected_output}")}</div>'
-            f'<div class="section-description">{t(f"format_{selected_output}_desc")}</div></div>',
+            f'<div class="panel"><div class="step-label">YOUR SELECTED FORMAT</div>'
+            f'<div class="section-heading">{selected_label}</div>'
+            f'<div class="section-description">{selected_caption}</div></div>',
             unsafe_allow_html=True,
         )
 
-        # Optional teacher step. OFF by default so the one-click flow is unchanged.
-        # The choice is also kept in a plain session key (widget state is dropped
-        # whenever this screen is not drawn).
-        review_on = st.checkbox(
-            t("review_checkbox"),
-            value=st.session_state.get("review_enabled", False),
-            key="review_cb",
-        )
-        st.session_state.review_enabled = review_on
+        back_col, _ = st.columns([1, 2])
+        with back_col:
+            if st.button("← Back to chapter", use_container_width=True):
+                st.session_state.app_state = "setup"
+                st.rerun()
 
-        # Full-width buttons (no side columns) so nothing is squeezed on a phone.
-        if st.button(t(f"action_{selected_output}"), type="primary", use_container_width=True):
-            if not pdf_path:
-                st.warning(t("warn_no_material"))
-            else:
-                execute_ai_structuring(pdf_path, st.session_state.selected_language)
-                if st.session_state.app_state in ("generating_media", "review", "error"):
-                    st.rerun()
-        if st.button(t("btn_back"), use_container_width=True):
-            st.session_state.app_state = "setup"
-            st.rerun()
+        # Keep the primary action and its AI progress/status centered in the workspace.
+        _, action_col, _ = st.columns([1, 1.5, 1])
+        with action_col:
+            selected_output = st.session_state.last_generated_type
+            action_labels = {
+                "video": "Generate lesson video  →",
+                "ppt": "Generate presentation  →",
+                "transcript": "Create study notes  →",
+                "flashcards": "Create flashcards  →",
+            }
+            if st.button(action_labels.get(selected_output, "Generate resource  →"), type="primary", use_container_width=True):
+                if not pdf_path:
+                    st.warning("Please select a chapter or upload a PDF first.")
+                else:
+                    execute_ai_structuring(pdf_path, st.session_state.selected_language)
+                    if st.session_state.app_state == "generating_media":
+                        st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
     elif st.session_state.app_state == "review":
@@ -1665,7 +1211,7 @@ def main() -> None:
 
     elif st.session_state.app_state == "generating_media":
         execute_media_generation(st.session_state.last_generated_type, get_session_dir())
-        if st.session_state.app_state in ("complete", "error"):
+        if st.session_state.app_state == "complete":
             st.rerun()
 
     elif st.session_state.app_state == "complete":
@@ -1674,7 +1220,11 @@ def main() -> None:
     elif st.session_state.app_state == "error":
         render_error_state()
 
-    st.markdown(f'<div class="footer">{t("footer")}</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="footer">ACADEMICVID &nbsp;·&nbsp; AI LEARNING STUDIO &nbsp;·&nbsp; '
+        'LEARN WITH CLARITY</div>',
+        unsafe_allow_html=True,
+    )
 
 
 if __name__ == "__main__":
