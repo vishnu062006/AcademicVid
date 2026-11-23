@@ -11,7 +11,8 @@ try:
 except ImportError:
     import fitz
 
-from slides import LABELS, FONT_DIR, check_fonts, _pretty_equation, _html_mixed
+from branding import APP_NAME
+from slides import get_labels, FONT_DIR, check_fonts, _pretty_equation, _html_mixed
 
 _CSS = """
 @font-face{font-family:kn;src:url(NotoSansKannada-Regular.ttf);}
@@ -39,7 +40,7 @@ def _h(text):
 
 
 def _build_html(chapter, language):
-    lab = LABELS.get(language, LABELS["English"])
+    lab = get_labels(language, chapter.subject)
     subject = lab["subjects"].get(chapter.subject, chapter.subject) if language == "Kannada" else chapter.subject
     parts = ['<h1>%s</h1>' % _h(chapter.chapter_title),
              '<p class="sub">%s <span class="lat">\u00b7</span> %s</p><div class="rule"></div>' % (_h(lab["notes"]), _h(subject))]
@@ -78,7 +79,7 @@ def export_transcript_pdf(chapter, out_path: str, language: str = "English") -> 
     doc = fitz.open(tmp)
     n = len(doc)
     for i, page in enumerate(doc):
-        page.insert_text((48, mediabox.height - 28), "AcademicVid", fontsize=8, color=(0.4, 0.4, 0.4))
+        page.insert_text((48, mediabox.height - 28), APP_NAME, fontsize=8, color=(0.4, 0.4, 0.4))
         page.insert_text((mediabox.width - 80, mediabox.height - 28), f"{i + 1} / {n}",
                          fontsize=8, color=(0.4, 0.4, 0.4))
     doc.save(out_path)

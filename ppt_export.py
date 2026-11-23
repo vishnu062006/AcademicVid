@@ -23,7 +23,7 @@ from pptx.enum.text import PP_ALIGN
 from pptx.oxml.ns import qn
 from lxml import etree
 
-from slides import SUBJECT_THEMES, LABELS, _pretty_equation
+from slides import SUBJECT_THEMES, LABELS, get_labels, _pretty_equation
 
 # Complex-script (Kannada) font. Nirmala UI ships with Windows 10+, which is what most
 # school PCs run; other apps substitute a Kannada-capable font automatically.
@@ -95,7 +95,7 @@ def _add_title_slide(prs: Presentation, chapter_title: str, subject: str, langua
 
 
 def _add_section_slide(prs: Presentation, section, subject: str, language: str = "English"):
-    lab = LABELS.get(language, LABELS["English"])
+    lab = get_labels(language, subject)
     colors = _theme_colors(subject)
     layout = prs.slide_layouts[BLANK_LAYOUT_INDEX]
     slide = prs.slides.add_slide(layout)

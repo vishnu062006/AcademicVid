@@ -27,7 +27,8 @@ class Section(BaseModel):
 
 class Chapter(BaseModel):
     chapter_title: str
-    subject: str  # drives slide color theme: Science / Math / Social Science / English
+    subject: str  # drives slide theme + labels: Science / Math / Social Science / English /
+                  # Kannada (story/poem lessons) / Computer Science / Other
     sections: List[Section]
 
 
@@ -38,7 +39,8 @@ GEMINI_RESPONSE_SCHEMA = {
         "chapter_title": {"type": "string"},
         "subject": {
             "type": "string",
-            "enum": ["Science", "Math", "Social Science", "English", "Other"],
+            "enum": ["Science", "Math", "Social Science", "English", "Kannada",
+                     "Computer Science", "Other"],
         },
         "sections": {
             "type": "array",
@@ -66,7 +68,7 @@ GEMINI_RESPONSE_SCHEMA = {
                 },
                 "required": [
                     "title", "hook", "concept", "indian_example",
-                    
+                    "key_points", "misconception", "narration",
                 ],
             },
         },

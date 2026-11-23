@@ -1,0 +1,37 @@
+# Keeps the Streamlit Community Cloud app from sleeping (it sleeps after ~12 h with no
+# visitors). Visits the app in a headless browser every 6 hours and clicks the wake-up
+# button if needed. Free on GitHub Actions for public repos.
+#
+# One-time setup: GitHub repo -> Settings -> Secrets and variables -> Actions -> Variables
+#   -> New repository variable:  APP_URL = https://<your-app>.streamlit.app
+# Run it by hand before a demo: Actions tab -> "Keep app awake" -> Run workflow.
+#
+# Note: GitHub turns off scheduled workflows in a public repo after 60 days with no
+# commits. Any push re-enables it (or re-enable it from the Actions tab).
+name: Keep app awake
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"   # every 6 hours, at minute 17 (the top of the hour is busy)
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  wake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install headless browser
+        run: |
+          pip install playwright==1.47.0
+          python -m playwright install --with-deps chromium
+      - name: Visit the app (and wake it if asleep)
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+        run: python scripts/keep_awake.py

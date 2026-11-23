@@ -50,21 +50,50 @@ STRINGS = {
         "upload_label": "Drop in a chapter PDF",
         "upload_hint": "Drag your PDF here, or tap “Browse files” to choose it.",
         "upload_selected": "Selected: {name}",
+        "source_notes": "Handwritten notes",
+        "source_topics": "Custom topics",
+        "kind_label": "What kind of lesson is this?",
+        "kind_chapter": "Subject chapter (Science, Maths, Social...)",
+        "kind_kannada": "Kannada subject: story or poem",
+        "kind_kannada_hint": "The lesson will follow the story or poem part by part, in Kannada: meaning, word meanings, context lines and values.",
+        "notes_label": "Photos of your notes, or a scanned PDF",
+        "notes_hint": "Up to {max} photos or one scanned PDF. Take photos in good light, one page per photo.",
+        "notes_too_many": "Only the first {max} files will be read.",
+        "notes_read_btn": "Read my notes",
+        "notes_reading": "Reading your notes... this can take up to a minute.",
+        "notes_nothing_read": "No text could be read. Try clearer photos with more light.",
+        "notes_check_label": "Check the text we read",
+        "notes_check_hint": "Handwriting can be misread. Fix any wrong words here; the lesson is made from this text.",
+        "topics_intro": "Type your own subject and the topics to cover. The lesson teaches every topic, one section each. No PDF needed.",
+        "topics_subject": "Subject",
+        "topics_subject_ph": "e.g. Operating Systems",
+        "topics_level": "Level",
+        "level_engineering": "Engineering (B.E. / B.Tech)",
+        "level_puc": "PUC / Class 11-12",
+        "level_school": "School (Class 6-10)",
+        "level_other": "Other",
+        "topics_list": "Topics, one per line (up to {max})",
+        "topics_list_ph": "Process scheduling\n- FCFS, SJF, Round Robin\nDeadlocks\nPaging and segmentation",
+        "topics_too_many": "{count} topics: please keep it to {max} or fewer. Split the rest into another lesson.",
+        "topics_count": "{count} topics. Lines starting with '-' are your notes for the topic above them.",
         "sidebar_footer": "Built for clearer learning, one chapter at a time.",
         # --- Step 1: setup ---------------------------------------------
         "setup_step": "Step 01 / Choose your material",
         "setup_heading": "What do you want to learn today?",
         "setup_desc": (
-            "Choose a chapter from the library or upload your own PDF. "
+            "Choose a library chapter, upload a PDF, photograph your handwritten notes, or type your own topics. "
             "We’ll decide how to study it in the next step."
         ),
         "chip_library": "Library",
         "chip_pdf": "Your PDF",
+        "chip_topics": "Custom topics",
+        "chip_notes": "Your notes",
+        "chip_kannada_lesson": "Kannada story / poem",
         "chapter_ready": "Great choice! Your learning material is ready.",
         "btn_next_format": "Next: Choose a learning format  →",
         "setup_panel_title": "Start with a chapter or PDF",
         "setup_panel_desc": (
-            "Pick a chapter above, or switch to Upload PDF. "
+            "Pick a chapter above, or choose another source. "
             "Your selected material will appear here."
         ),
         # --- Step 2: choose format -------------------------------------
@@ -91,7 +120,7 @@ STRINGS = {
         "status_extract": "Extracting readable text from the PDF.",
         "status_structure": "Structuring the chapter into a lesson with AI.",
         "status_lesson_ready": "Lesson prepared — starting generation",
-        "err_no_text": "No readable text was found. Try a text-based PDF instead of a scanned document.",
+        "err_no_text": "No readable text was found. If this is a scanned or photographed document, use \u201cHandwritten notes\u201d instead.",
         "err_no_sections": "The AI did not return any lesson sections. Please try again.",
         "err_prepare": "Could not prepare the script: {error}",
         "status_building": "Building your learning resource…",
@@ -108,6 +137,7 @@ STRINGS = {
         "err_no_chapter": "No chapter is available to generate.",
         "err_generation": "Generation failed: {error}",
         "err_quota": "Today’s free AI limit has been reached. Please try again in a few minutes, or tomorrow.",
+        "err_slow": "The AI service is busy and took too long to answer. Please try again in a minute.",
         "err_network": "Could not connect to the internet or the AI service. Please check your connection and try again.",
         "err_too_long": "This PDF has {pages} pages. The limit is {limit} pages, so lessons stay quick on slow connections. Please upload a shorter chapter.",
         "err_unreadable_pdf": "This PDF could not be opened. It may be damaged or password-protected. Please try another file.",
@@ -161,7 +191,7 @@ STRINGS = {
         "error_heading": "Something went wrong",
         "error_default": "An unexpected error occurred.",
         "btn_back_workspace": "Back to workspace",
-        "footer": "ACADEMICVID &nbsp;·&nbsp; AI LEARNING STUDIO &nbsp;·&nbsp; LEARN WITH CLARITY",
+        "footer": "{app} &nbsp;·&nbsp; AI LEARNING STUDIO &nbsp;·&nbsp; LEARN WITH CLARITY",
     },
     "Kannada": {
         # --- Hero -------------------------------------------------------
@@ -193,21 +223,49 @@ STRINGS = {
         "upload_label": "ಅಧ್ಯಾಯದ PDF ಇಲ್ಲಿ ಹಾಕಿ",  # NEEDS REVIEW
         "upload_hint": "PDF ಫೈಲ್ ಅನ್ನು ಇಲ್ಲಿ ಎಳೆದು ಬಿಡಿ, ಅಥವಾ “Browse files” ಒತ್ತಿ ಆಯ್ಕೆಮಾಡಿ.",  # NEEDS REVIEW
         "upload_selected": "ಆಯ್ಕೆ: {name}",  # NEEDS REVIEW
+        "source_notes": "ಕೈಬರಹದ ಟಿಪ್ಪಣಿ",  # NEEDS REVIEW
+        "source_topics": "ನಿಮ್ಮ ವಿಷಯಗಳು",  # NEEDS REVIEW
+        "kind_label": "ಇದು ಯಾವ ರೀತಿಯ ಪಾಠ?",  # NEEDS REVIEW
+        "kind_chapter": "ವಿಷಯದ ಅಧ್ಯಾಯ (ವಿಜ್ಞಾನ, ಗಣಿತ, ಸಮಾಜ...)",  # NEEDS REVIEW
+        "kind_kannada": "ಕನ್ನಡ ವಿಷಯ: ಕಥೆ ಅಥವಾ ಪದ್ಯ",  # NEEDS REVIEW
+        "kind_kannada_hint": "ಪಾಠವು ಕಥೆ ಅಥವಾ ಪದ್ಯವನ್ನು ಭಾಗ ಭಾಗವಾಗಿ ಅನುಸರಿಸುತ್ತದೆ: ಭಾವಾರ್ಥ, ಪದಗಳ ಅರ್ಥ, ಸಂದರ್ಭ ಮತ್ತು ಮೌಲ್ಯಗಳು.",  # NEEDS REVIEW
+        "notes_label": "ನಿಮ್ಮ ಟಿಪ್ಪಣಿಗಳ ಫೋಟೋಗಳು ಅಥವಾ ಸ್ಕ್ಯಾನ್ ಮಾಡಿದ PDF",  # NEEDS REVIEW
+        "notes_hint": "ಗರಿಷ್ಠ {max} ಫೋಟೋಗಳು ಅಥವಾ ಒಂದು ಸ್ಕ್ಯಾನ್ PDF. ಒಳ್ಳೆಯ ಬೆಳಕಿನಲ್ಲಿ, ಒಂದು ಫೋಟೋಗೆ ಒಂದು ಪುಟ.",  # NEEDS REVIEW
+        "notes_too_many": "ಮೊದಲ {max} ಫೈಲ್‌ಗಳನ್ನು ಮಾತ್ರ ಓದಲಾಗುತ್ತದೆ.",  # NEEDS REVIEW
+        "notes_read_btn": "ನನ್ನ ಟಿಪ್ಪಣಿ ಓದಿ",  # NEEDS REVIEW
+        "notes_reading": "ನಿಮ್ಮ ಟಿಪ್ಪಣಿಗಳನ್ನು ಓದಲಾಗುತ್ತಿದೆ... ಒಂದು ನಿಮಿಷ ಆಗಬಹುದು.",  # NEEDS REVIEW
+        "notes_nothing_read": "ಯಾವುದೇ ಪಠ್ಯ ಓದಲು ಆಗಲಿಲ್ಲ. ಹೆಚ್ಚು ಬೆಳಕಿನಲ್ಲಿ ಸ್ಪಷ್ಟ ಫೋಟೋ ತೆಗೆಯಿರಿ.",  # NEEDS REVIEW
+        "notes_check_label": "ಓದಿದ ಪಠ್ಯವನ್ನು ಪರಿಶೀಲಿಸಿ",  # NEEDS REVIEW
+        "notes_check_hint": "ಕೈಬರಹ ತಪ್ಪಾಗಿ ಓದಬಹುದು. ತಪ್ಪು ಪದಗಳನ್ನು ಇಲ್ಲಿ ಸರಿಪಡಿಸಿ; ಈ ಪಠ್ಯದಿಂದಲೇ ಪಾಠ ತಯಾರಾಗುತ್ತದೆ.",  # NEEDS REVIEW
+        "topics_intro": "ನಿಮ್ಮ ವಿಷಯ ಮತ್ತು ಕಲಿಸಬೇಕಾದ ಟಾಪಿಕ್‌ಗಳನ್ನು ಬರೆಯಿರಿ. ಪ್ರತಿ ಟಾಪಿಕ್‌ಗೆ ಒಂದು ಭಾಗ. PDF ಬೇಕಿಲ್ಲ.",  # NEEDS REVIEW
+        "topics_subject": "ವಿಷಯ",  # NEEDS REVIEW
+        "topics_subject_ph": "ಉದಾ: Operating Systems",  # NEEDS REVIEW
+        "topics_level": "ಹಂತ",  # NEEDS REVIEW
+        "level_engineering": "ಎಂಜಿನಿಯರಿಂಗ್ (B.E. / B.Tech)",  # NEEDS REVIEW
+        "level_puc": "ಪಿಯುಸಿ / 11-12ನೇ ತರಗತಿ",  # NEEDS REVIEW
+        "level_school": "ಶಾಲೆ (6-10ನೇ ತರಗತಿ)",  # NEEDS REVIEW
+        "level_other": "ಇತರೆ",  # NEEDS REVIEW
+        "topics_list": "ಟಾಪಿಕ್‌ಗಳು, ಸಾಲಿಗೆ ಒಂದು (ಗರಿಷ್ಠ {max})",  # NEEDS REVIEW
+        "topics_too_many": "{count} ಟಾಪಿಕ್‌ಗಳು: ದಯವಿಟ್ಟು {max} ಅಥವಾ ಕಡಿಮೆ ಇರಿಸಿ. ಉಳಿದವನ್ನು ಇನ್ನೊಂದು ಪಾಠವಾಗಿ ಮಾಡಿ.",  # NEEDS REVIEW
+        "topics_count": "{count} ಟಾಪಿಕ್‌ಗಳು. '-' ನಿಂದ ಆರಂಭವಾಗುವ ಸಾಲುಗಳು ಮೇಲಿನ ಟಾಪಿಕ್‌ನ ಟಿಪ್ಪಣಿಗಳು.",  # NEEDS REVIEW
         "sidebar_footer": "ಒಂದು ಬಾರಿಗೆ ಒಂದು ಅಧ್ಯಾಯ — ಸ್ಪಷ್ಟ ಕಲಿಕೆಗಾಗಿ ರೂಪಿಸಲಾಗಿದೆ.",  # NEEDS REVIEW
         # --- Step 1: setup ---------------------------------------------
         "setup_step": "ಹಂತ 01 / ನಿಮ್ಮ ಸಾಮಗ್ರಿಯನ್ನು ಆರಿಸಿ",  # NEEDS REVIEW
         "setup_heading": "ಇಂದು ನೀವು ಏನು ಕಲಿಯಲು ಬಯಸುತ್ತೀರಿ?",  # NEEDS REVIEW
         "setup_desc": (  # NEEDS REVIEW
-            "ಗ್ರಂಥಾಲಯದಿಂದ ಒಂದು ಅಧ್ಯಾಯವನ್ನು ಆರಿಸಿ ಅಥವಾ ನಿಮ್ಮದೇ PDF ಅಪ್‌ಲೋಡ್ ಮಾಡಿ. "
+            "ಗ್ರಂಥಾಲಯದ ಅಧ್ಯಾಯ ಆರಿಸಿ, PDF ಅಪ್‌ಲೋಡ್ ಮಾಡಿ, ಕೈಬರಹದ ಟಿಪ್ಪಣಿಯ ಫೋಟೋ ಹಾಕಿ, ಅಥವಾ ನಿಮ್ಮ ವಿಷಯಗಳನ್ನು ಬರೆಯಿರಿ. "
             "ಅದನ್ನು ಹೇಗೆ ಕಲಿಯಬೇಕೆಂದು ಮುಂದಿನ ಹಂತದಲ್ಲಿ ಆರಿಸೋಣ."
         ),
         "chip_library": "ಗ್ರಂಥಾಲಯ",  # NEEDS REVIEW
         "chip_pdf": "ನಿಮ್ಮ PDF",  # NEEDS REVIEW
+        "chip_topics": "ನಿಮ್ಮ ವಿಷಯಗಳು",  # NEEDS REVIEW
+        "chip_notes": "ನಿಮ್ಮ ಟಿಪ್ಪಣಿ",  # NEEDS REVIEW
+        "chip_kannada_lesson": "ಕನ್ನಡ ಕಥೆ / ಪದ್ಯ",  # NEEDS REVIEW
         "chapter_ready": "ಚೆನ್ನಾಗಿದೆ! ನಿಮ್ಮ ಕಲಿಕಾ ಸಾಮಗ್ರಿ ಸಿದ್ಧವಾಗಿದೆ.",  # NEEDS REVIEW
         "btn_next_format": "ಮುಂದೆ: ಕಲಿಕೆಯ ಮಾದರಿಯನ್ನು ಆರಿಸಿ  →",  # NEEDS REVIEW
         "setup_panel_title": "ಒಂದು ಅಧ್ಯಾಯ ಅಥವಾ PDF ಆರಿಸಿ",  # NEEDS REVIEW
         "setup_panel_desc": (  # NEEDS REVIEW
-            "ಮೇಲೆ ಒಂದು ಅಧ್ಯಾಯವನ್ನು ಆರಿಸಿ, ಅಥವಾ “PDF ಅಪ್‌ಲೋಡ್” ಆಯ್ಕೆಮಾಡಿ. "
+            "ಮೇಲೆ ಒಂದು ಅಧ್ಯಾಯವನ್ನು ಆರಿಸಿ, ಅಥವಾ ಬೇರೆ ಮೂಲವನ್ನು ಆಯ್ಕೆಮಾಡಿ. "
             "ನೀವು ಆರಿಸಿದ ಸಾಮಗ್ರಿ ಇಲ್ಲಿ ಕಾಣಿಸುತ್ತದೆ."
         ),
         # --- Step 2: choose format -------------------------------------
@@ -234,7 +292,7 @@ STRINGS = {
         "status_extract": "PDF ನಿಂದ ಓದಬಹುದಾದ ಪಠ್ಯವನ್ನು ತೆಗೆಯಲಾಗುತ್ತಿದೆ.",  # NEEDS REVIEW
         "status_structure": "AI ಬಳಸಿ ಅಧ್ಯಾಯವನ್ನು ಪಾಠವಾಗಿ ರೂಪಿಸಲಾಗುತ್ತಿದೆ.",  # NEEDS REVIEW
         "status_lesson_ready": "ಪಾಠ ಸಿದ್ಧವಾಗಿದೆ — ರಚನೆ ಆರಂಭವಾಗುತ್ತಿದೆ",  # NEEDS REVIEW
-        "err_no_text": "ಓದಬಹುದಾದ ಪಠ್ಯ ಸಿಗಲಿಲ್ಲ. ಸ್ಕ್ಯಾನ್ ಮಾಡಿದ ದಾಖಲೆಯ ಬದಲು ಪಠ್ಯ ಆಧಾರಿತ PDF ಬಳಸಿ ನೋಡಿ.",  # NEEDS REVIEW
+        "err_no_text": "ಓದಬಹುದಾದ ಪಠ್ಯ ಸಿಗಲಿಲ್ಲ. ಇದು ಸ್ಕ್ಯಾನ್ ಅಥವಾ ಫೋಟೋ ದಾಖಲೆಯಾಗಿದ್ದರೆ, “ಕೈಬರಹದ ಟಿಪ್ಪಣಿ” ಆಯ್ಕೆ ಬಳಸಿ.",  # NEEDS REVIEW
         "err_no_sections": "AI ಯಾವುದೇ ಪಾಠ ವಿಭಾಗಗಳನ್ನು ನೀಡಲಿಲ್ಲ. ದಯವಿಟ್ಟು ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",  # NEEDS REVIEW
         "err_prepare": "ಪಾಠದ ಸ್ಕ್ರಿಪ್ಟ್ ಸಿದ್ಧಪಡಿಸಲು ಆಗಲಿಲ್ಲ: {error}",  # NEEDS REVIEW
         "status_building": "ನಿಮ್ಮ ಕಲಿಕಾ ಸಾಮಗ್ರಿಯನ್ನು ರಚಿಸಲಾಗುತ್ತಿದೆ…",  # NEEDS REVIEW
@@ -251,6 +309,7 @@ STRINGS = {
         "err_no_chapter": "ರಚಿಸಲು ಯಾವುದೇ ಅಧ್ಯಾಯ ಲಭ್ಯವಿಲ್ಲ.",  # NEEDS REVIEW
         "err_generation": "ರಚನೆ ವಿಫಲವಾಯಿತು: {error}",  # NEEDS REVIEW
         "err_quota": "ಇಂದಿನ ಉಚಿತ AI ಮಿತಿ ಮುಗಿದಿದೆ. ದಯವಿಟ್ಟು ಕೆಲವು ನಿಮಿಷಗಳ ನಂತರ ಅಥವಾ ನಾಳೆ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",  # NEEDS REVIEW
+        "err_slow": "AI ಸೇವೆ ಈಗ ತುಂಬಾ ಕಾರ್ಯನಿರತವಾಗಿದೆ, ಉತ್ತರಿಸಲು ತಡವಾಯಿತು. ಒಂದು ನಿಮಿಷದ ನಂತರ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",  # NEEDS REVIEW
         "err_network": "ಇಂಟರ್ನೆಟ್ ಅಥವಾ AI ಸೇವೆಗೆ ಸಂಪರ್ಕಿಸಲು ಆಗಲಿಲ್ಲ. ದಯವಿಟ್ಟು ನಿಮ್ಮ ಸಂಪರ್ಕ ಪರಿಶೀಲಿಸಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",  # NEEDS REVIEW
         "err_too_long": "ಈ PDF ನಲ್ಲಿ {pages} ಪುಟಗಳಿವೆ. ನಿಧಾನ ಇಂಟರ್ನೆಟ್‌ನಲ್ಲೂ ಪಾಠ ಬೇಗ ತಯಾರಾಗಲು ಮಿತಿ {limit} ಪುಟಗಳು. ದಯವಿಟ್ಟು ಚಿಕ್ಕ ಅಧ್ಯಾಯವನ್ನು ಅಪ್‌ಲೋಡ್ ಮಾಡಿ.",  # NEEDS REVIEW
         "err_unreadable_pdf": "ಈ PDF ಅನ್ನು ತೆರೆಯಲು ಆಗಲಿಲ್ಲ. ಅದು ಹಾನಿಗೊಂಡಿರಬಹುದು ಅಥವಾ ಪಾಸ್‌ವರ್ಡ್ ಇರಬಹುದು. ದಯವಿಟ್ಟು ಬೇರೆ ಫೈಲ್ ಪ್ರಯತ್ನಿಸಿ.",  # NEEDS REVIEW
@@ -304,7 +363,7 @@ STRINGS = {
         "error_heading": "ಏನೋ ತಪ್ಪಾಗಿದೆ",  # NEEDS REVIEW
         "error_default": "ಅನಿರೀಕ್ಷಿತ ದೋಷ ಉಂಟಾಗಿದೆ.",  # NEEDS REVIEW
         "btn_back_workspace": "ಮುಖಪುಟಕ್ಕೆ ಹಿಂತಿರುಗಿ",  # NEEDS REVIEW
-        "footer": "ACADEMICVID &nbsp;·&nbsp; AI ಕಲಿಕಾ ಸ್ಟುಡಿಯೋ &nbsp;·&nbsp; ಸ್ಪಷ್ಟತೆಯೊಂದಿಗೆ ಕಲಿಯಿರಿ",  # NEEDS REVIEW
+        "footer": "{app} &nbsp;·&nbsp; AI ಕಲಿಕಾ ಸ್ಟುಡಿಯೋ &nbsp;·&nbsp; ಸ್ಪಷ್ಟತೆಯೊಂದಿಗೆ ಕಲಿಯಿರಿ",  # NEEDS REVIEW
     },
 }
 

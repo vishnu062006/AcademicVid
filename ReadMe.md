@@ -224,9 +224,6 @@ AcademicVid/
 ├── assets/
 │   └── fonts/             # Fonts used for slide rendering
 │
-├── images/                 # Project assets
-├── videos/                 # Video assets
-│
 ├── requirements.txt
 ├── runtime.txt
 ├── packages.txt

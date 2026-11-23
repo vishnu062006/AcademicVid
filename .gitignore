@@ -16,3 +16,12 @@ images/
 videos/
 check.jpg
 concatenated_video.mp4
+streamlit-debug.log
+scratch/
+.streamlit/secrets.toml
+kn_slides/
+image.gif
+app_backup.py
+apply_issue*.py
+*.save
+FETCH_HEAD

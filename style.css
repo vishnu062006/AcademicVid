@@ -1,0 +1,355 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=Noto+Sans+Kannada:wght@400;500;600;700&display=swap');
+
+/* =========================================
+   1. GLOBAL VARIABLES & ANIMATIONS
+========================================= */
+:root {
+    --bg: #f9f8f6;            /* Soft Cream/Beige */
+    --surface: rgba(255, 255, 255, 0.75); /* Frosted White */
+    --surface-2: #ffffff;
+    --border: rgba(44, 40, 37, 0.12);
+    --border-hover: rgba(217, 107, 66, 0.4);
+    --text: #2c2825;          /* Deep Espresso / Charcoal */
+    --muted: #797067;         /* Warm Gray */
+    --accent: #d96b42;        /* Terracotta / Rust */
+    --accent-soft: rgba(217, 107, 66, 0.08);
+}
+
+@keyframes fadeSlideUp {
+    0% { opacity: 0; transform: translateY(24px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes textShine {
+    to { background-position: 200% center; }
+}
+
+@keyframes float {
+    0% { transform: translateY(0px); }
+    50% { transform: translateY(-6px); box-shadow: 0 12px 24px rgba(217, 107, 66, 0.15); }
+    100% { transform: translateY(0px); }
+}
+
+@keyframes shadowPulse {
+    0%, 100% { box-shadow: 0 4px 12px rgba(217, 107, 66, 0.15); }
+    50% { box-shadow: 0 8px 24px rgba(217, 107, 66, 0.3); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: .01ms !important;
+        transition-duration: .01ms !important;
+    }
+}
+
+/* =========================================
+   2. BASE STREAMLIT OVERRIDES
+========================================= */
+html, body, [class*="css"] {
+    font-family: 'DM Sans', 'Noto Sans Kannada', sans-serif;
+}
+
+/* Elegant light background */
+.stApp {
+    background:
+      radial-gradient(circle at 15% 50%, rgba(217, 107, 66, 0.03), transparent 40%),
+      radial-gradient(circle at 85% 30%, rgba(196, 159, 93, 0.04), transparent 40%),
+      var(--bg);
+    background-attachment: fixed;
+    color: var(--text);
+}
+
+header { visibility: hidden !important; }
+#MainMenu { visibility: hidden !important; }
+.stDeployButton { display: none !important; }
+
+.main .block-container {
+    max-width: 1240px;
+    padding-top: 2rem;
+    padding-bottom: 4rem;
+}
+
+h1, h2, h3, .brand-name, .hero-title, .section-heading, .chapter-title {
+    font-family: 'Space Grotesk', 'Noto Sans Kannada', sans-serif !important;
+    letter-spacing: -.035em;
+    color: var(--text);
+}
+p, .stMarkdown, [data-testid="stCaptionContainer"] { color: var(--muted); }
+
+/* =========================================
+   3. BRAND & HERO
+========================================= */
+.brand-lockup {
+    display: flex; align-items: center; gap: 12px;
+    margin: 4px 0 28px;
+    animation: fadeSlideUp 0.5s ease-out forwards;
+}
+.brand-mark {
+    display: flex; align-items: center; justify-content: center;
+    width: 42px; height: 42px; border-radius: 13px;
+    color: #ffffff; background: var(--accent);
+    font: 800 20px 'Space Grotesk', sans-serif;
+    animation: float 4s ease-in-out infinite;
+}
+.brand-name { font-size: 19px; font-weight: 700; color: var(--text); }
+.brand-caption { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+
+.hero {
+    position: relative; overflow: hidden;
+    padding: 40px; border-radius: 24px;
+    margin-bottom: 30px;
+    /* Light Glassmorphism */
+    background: var(--surface);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.04);
+    animation: fadeSlideUp 0.6s ease-out forwards;
+}
+
+.hero:after {
+    content: ''; position: absolute; width: 300px; height: 300px;
+    right: -100px; top: -150px; border-radius: 50%;
+    background: rgba(217, 107, 66, 0.1); filter: blur(50px);
+    pointer-events: none;
+}
+
+.eyebrow {
+    color: var(--accent); font-size: 11px; font-weight: 700;
+    letter-spacing: .17em; text-transform: uppercase; margin-bottom: 14px;
+}
+.hero-title { font-size: clamp(2.2rem, 5vw, 4rem); line-height: 1.04; max-width: 760px; margin: 0 0 16px; color: var(--text); }
+.hero-subtitle { font-size: 15px; line-height: 1.75; max-width: 720px; color: var(--muted); }
+
+.gradient-text {
+    background: linear-gradient(90deg, #d96b42 0%, #c49f5d 45%, #b55338 100%);
+    background-size: 200% auto;
+    -webkit-background-clip: text; background-clip: text;
+    color: transparent;
+    animation: textShine 6s linear infinite;
+}
+
+/* Hero Badges */
+.learning-promise { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 20px; }
+.learning-promise span {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 12px; color: var(--text);
+    background: rgba(255, 255, 255, 0.5); border: 1px solid var(--border);
+    border-radius: 10px; padding: 9px 12px;
+}
+.learning-promise b { color: var(--accent); font-weight: 700; }
+
+.hero-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
+.meta-pill {
+    font-size: 11px; letter-spacing: .04em; color: var(--muted);
+    border: 1px solid var(--border); background: rgba(255, 255, 255, 0.3);
+    padding: 7px 11px; border-radius: 99px;
+}
+.meta-pill.active {
+    color: var(--accent); border-color: rgba(217, 107, 66, 0.3);
+    background: var(--accent-soft);
+}
+
+/* =========================================
+   4. LAYOUT & CARDS
+========================================= */
+.setup-content {
+    max-width: 840px; width: 100%; margin: 0 auto;
+    animation: fadeSlideUp 0.7s ease-out forwards;
+}
+
+.section-heading { font-size: 21px; margin: 6px 0 5px; color: var(--text); }
+.section-description { font-size: 13px; margin-bottom: 17px; color: var(--muted); }
+.step-label { color: var(--accent); font-size: 10px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; }
+
+.panel, .chapter-card {
+    background: rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--border);
+    border-radius: 18px; padding: 24px; margin: 12px 0 20px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+    transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.panel:hover, .chapter-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(44, 40, 37, 0.2);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
+}
+
+.chip-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 16px; }
+.chip {
+    padding: 5px 9px; border-radius: 99px; font-size: 10px; font-weight: 700;
+    letter-spacing: .08em; text-transform: uppercase;
+    color: var(--muted); background: rgba(255, 255, 255, 0.5); border: 1px solid var(--border);
+}
+.chip-accent {
+    color: #b55338 !important; background: rgba(217, 107, 66, 0.1) !important;
+    border-color: rgba(217, 107, 66, 0.3) !important;
+}
+
+/* =========================================
+   5. BUTTONS & INPUTS
+========================================= */
+.stButton > button, .stDownloadButton > button, .stFormSubmitButton > button {
+    border: 1px solid transparent !important;
+    border-radius: 12px !important;
+    min-height: 48px; font-weight: 600 !important;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+/* Primary Button */
+.stButton > button[kind="primary"], .stFormSubmitButton > button[kind="primary"] {
+    background: var(--accent) !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 12px rgba(217, 107, 66, 0.2) !important;
+}
+
+/* FIX: Force all nested text inside primary buttons to be crisp white */
+.stButton > button[kind="primary"] *,
+.stFormSubmitButton > button[kind="primary"] *,
+.stButton > button[kind="primary"] p,
+.stFormSubmitButton > button[kind="primary"] p {
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+}
+
+.stButton > button[kind="primary"]:hover, .stFormSubmitButton > button[kind="primary"]:hover {
+    background: #c25e3e !important;
+    transform: translateY(-2px) scale(1.01) !important;
+    animation: shadowPulse 1.5s infinite !important;
+}
+
+/* Secondary Button */
+.stButton > button[kind="secondary"] {
+    background: #ffffff !important;
+    border: 1px solid var(--border) !important;
+    color: var(--text) !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.02) !important;
+}
+.stButton > button[kind="secondary"]:hover {
+    border-color: var(--accent) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05) !important;
+}
+
+/* Inputs & Dropdowns */
+div[data-baseweb="select"] > div, div[data-baseweb="input"] > div,
+div[data-testid="stTextInput"] input, div[data-testid="stTextArea"] textarea {
+    background: #ffffff !important; color: var(--text) !important;
+    border: 1px solid var(--border) !important; border-radius: 11px !important;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.01) !important;
+    transition: all 0.25s ease !important;
+}
+div[data-baseweb="select"] > div:hover, div[data-baseweb="input"] > div:focus-within,
+div[data-testid="stTextInput"] input:focus, div[data-testid="stTextArea"] textarea:focus {
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 0 3px rgba(217, 107, 66, 0.15) !important;
+}
+
+/* Sidebar styling for light mode */
+[data-testid="stSidebar"] {
+    background: #fdfcfb !important;
+    border-right: 1px solid var(--border) !important;
+}
+[data-testid="stSidebar"] label { color: var(--text) !important; }
+
+/* =========================================
+   6. RADIO CARDS (OUTPUT SELECTORS)
+========================================= */
+[data-testid="stAppViewBlockContainer"] div[data-testid="stRadio"]:has(input) div[role="radiogroup"] {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 14px !important;
+}
+[data-testid="stAppViewBlockContainer"] div[data-testid="stRadio"] div[role="radiogroup"] > label {
+    box-sizing: border-box !important; width: 100% !important; min-height: 118px !important;
+    padding: 22px 24px !important;
+    border-radius: 16px !important;
+    background: #ffffff !important;
+    border: 1px solid var(--border) !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.02) !important;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+[data-testid="stAppViewBlockContainer"] div[data-testid="stRadio"] div[role="radiogroup"] > label:hover {
+    transform: translateY(-4px) !important;
+    border-color: var(--accent) !important;
+    box-shadow: 0 10px 24px rgba(217, 107, 66, 0.1) !important;
+}
+[data-testid="stAppViewBlockContainer"] div[data-testid="stRadio"] div[role="radiogroup"] label:has(input:checked) {
+    border-color: var(--accent) !important;
+    background: var(--accent-soft) !important;
+    box-shadow: 0 0 0 1px var(--accent), 0 8px 24px rgba(217, 107, 66, 0.12) !important;
+}
+
+/* Clean up Streamlit radio elements */
+[data-testid="stAppViewBlockContainer"] div[data-testid="stRadio"] div[role="radiogroup"] > label > div:first-child { display: none !important; }
+[data-testid="stAppViewBlockContainer"] div[data-testid="stRadio"] div[role="radiogroup"] label p {
+    color: var(--text) !important; font-size: 16px !important; font-weight: 600 !important;
+}
+[data-testid="stAppViewBlockContainer"] div[data-testid="stRadio"] div[role="radiogroup"] > label [data-testid="stMarkdownContainer"]::after {
+    display: block !important; margin-top: 7px !important;
+    color: var(--muted) !important; font-size: 13px !important; font-weight: 400 !important;
+}
+
+/* Inject Subtitles safely */
+[data-testid="stAppViewBlockContainer"] div[data-testid="stRadio"] div[role="radiogroup"] > label:nth-child(1) [data-testid="stMarkdownContainer"]::after { content: "Animated lesson with AI narration"; }
+[data-testid="stAppViewBlockContainer"] div[data-testid="stRadio"] div[role="radiogroup"] > label:nth-child(2) [data-testid="stMarkdownContainer"]::after { content: "Editable presentation deck"; }
+[data-testid="stAppViewBlockContainer"] div[data-testid="stRadio"] div[role="radiogroup"] > label:nth-child(3) [data-testid="stMarkdownContainer"]::after { content: "Clean, printable study notes"; }
+[data-testid="stAppViewBlockContainer"] div[data-testid="stRadio"] div[role="radiogroup"] > label:nth-child(4) [data-testid="stMarkdownContainer"]::after { content: "Quick recall and revision cards"; }
+
+/* =========================================
+   7. FILE UPLOADER
+========================================= */
+[data-testid="stFileUploader"] section {
+    background: rgba(255, 255, 255, 0.5) !important;
+    border: 2px dashed rgba(44, 40, 37, 0.15) !important;
+    border-radius: 16px !important;
+    transition: all 0.3s ease !important;
+}
+[data-testid="stFileUploader"] section:hover {
+    border-color: var(--accent) !important;
+    background: #ffffff !important;
+}
+
+/* Keep the instructional text muted */
+[data-testid="stFileUploader"] section div[data-testid="stMarkdownContainer"] p,
+[data-testid="stFileUploader"] section small { 
+    color: var(--muted) !important; 
+    -webkit-text-fill-color: var(--muted) !important; 
+}
+
+/* FIX: Make the Browse Files button dark with white text */
+[data-testid="stFileUploader"] button {
+    background: var(--text) !important; /* Deep Espresso background */
+    border: none !important;
+}
+[data-testid="stFileUploader"] button,
+[data-testid="stFileUploader"] button * {
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+    font-weight: 600 !important;
+}
+
+/* =========================================
+   8. MOBILE RESPONSIVENESS
+========================================= */
+@media (max-width: 700px) {
+    .main .block-container { padding: 1rem 1rem 3rem; }
+    .hero { padding: 26px 22px; border-radius: 18px; animation: none; }
+    .hero-title { font-size: 2.25rem; }
+    [data-testid="stAppViewBlockContainer"] div[data-testid="stRadio"] div[role="radiogroup"] { grid-template-columns: 1fr !important; }
+}
+
+/* =========================================
+   9. FOOTER
+========================================= */
+.footer {
+    width: 100%;
+    display: block;
+    text-align: center !important;
+    color: var(--muted);
+    font-size: 13px;
+    margin-top: 60px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+}

@@ -13,6 +13,8 @@ import os
 import re
 import html
 
+from branding import APP_NAME
+
 try:
     import pymupdf as fitz          # PyMuPDF >= 1.24.3
 except ImportError:                 # older installs
@@ -31,6 +33,8 @@ SUBJECT_THEMES = {
     "Math":           {"bg": (17, 45, 78),   "accent": (255, 138, 0), "text": (255, 255, 255)},
     "Social Science": {"bg": (91, 33, 33),   "accent": (255, 205, 178), "text": (255, 255, 255)},
     "English":        {"bg": (35, 33, 71),   "accent": (150, 200, 255), "text": (255, 255, 255)},
+    "Kannada":        {"bg": (122, 38, 28),  "accent": (255, 196, 61), "text": (255, 255, 255)},
+    "Computer Science": {"bg": (18, 52, 64), "accent": (94, 234, 212), "text": (255, 255, 255)},
     "Other":          {"bg": (40, 40, 40),   "accent": (200, 200, 200), "text": (255, 255, 255)},
 }
 WARN = (255, 99, 71)
@@ -46,8 +50,35 @@ LABELS = {
                 "equation": "ಪ್ರಮುಖ ಸಮೀಕರಣ",
                 "notes": "ಅಧ್ಯಯನ ಟಿಪ್ಪಣಿಗಳು",
                 "subjects": {"Science": "ವಿಜ್ಞಾನ", "Math": "ಗಣಿತ",
-                             "Social Science": "ಸಮಾಜ ವಿಜ್ಞಾನ", "English": "ಇಂಗ್ಲಿಷ್"}},
+                             "Social Science": "ಸಮಾಜ ವಿಜ್ಞಾನ", "English": "ಇಂಗ್ಲಿಷ್",
+                             "Kannada": "ಕನ್ನಡ", "Computer Science": "ಗಣಕ ವಿಜ್ಞಾನ"}},
 }
+
+# Heading overrides per subject: the same JSON fields mean different things in a
+# Kannada story/poem lesson or a computer-science topic lesson.
+# NOTE: the Kannada wording should be reviewed by a Kannada teacher.
+SUBJECT_LABELS = {
+    # Kannada subject lessons are always in Kannada, whatever the UI language.
+    "Kannada": {"concept": "ಭಾವಾರ್ಥ / ಸಾರಾಂಶ", "example": "ಜೀವನಕ್ಕೆ ಹೊಂದಾಣಿಕೆ",
+                "key_points": "ಪದಗಳ ಅರ್ಥ ಮತ್ತು ಮುಖ್ಯ ಅಂಶಗಳು", "misconception": "ಗಮನಿಸಿ!",
+                "equation": "ಮುಖ್ಯ ಸಾಲು", "notes": "ಪಾಠದ ಟಿಪ್ಪಣಿಗಳು"},
+    "Computer Science": {
+        "English": {"example": "Real-World Example", "equation": "Formula / Code"},
+        "Kannada": {"equation": "ಸೂತ್ರ / ಕೋಡ್"},
+    },
+}
+
+
+def get_labels(language: str, subject: str) -> dict:
+    """Slide / PPT / notes headings for this language and subject."""
+    lab = dict(LABELS.get(language, LABELS["English"]))
+    override = SUBJECT_LABELS.get(subject)
+    if subject == "Kannada":
+        lab = dict(LABELS["Kannada"])
+        lab.update(override)
+    elif override:
+        lab.update(override.get(language, {}))
+    return lab
 
 # ----------------------------------------------------------------------------
 # helpers
@@ -110,7 +141,8 @@ def _html_mixed(text: str) -> str:
             continue
         esc = html.escape(part)
         out.append('<span class="lat">%s</span>' % esc if (i % 2 == 1 and part.strip()) else esc)
-    return "".join(out)
+    # Keep line breaks (poem lines, short code snippets) instead of running them together.
+    return "".join(out).replace("\n", "<br>")
 
 
 class _Canvas:
@@ -200,7 +232,7 @@ class _Canvas:
 
     def footer(self, chapter_title):
         c = _mix(self.bg, (255, 255, 255), 0.55)
-        self.text(fitz.Rect(64, H - 46, 420, H - 12), "AcademicVid", body_px=20, color=c, bold=True)
+        self.text(fitz.Rect(64, H - 46, 420, H - 12), APP_NAME, body_px=20, color=c, bold=True)
         if chapter_title:
             self.text(fitz.Rect(W - 760, H - 46, W - 64, H - 12), chapter_title, body_px=20,
                       color=c, align="right")
@@ -245,8 +277,15 @@ def _slide_equation(section, subject, path, ctx, lab):
                      fill=_f(c.accent), radius=0.5)
     dark = _mix(c.bg, (0, 0, 0), 0.35)
     eq = _pretty_equation(section.key_equation, subject)
-    c.text(fitz.Rect(card.x0 + 30, card.y0 + 20, card.x1 - 30, card.y1 - 30), eq,
-           body_px=62, color=dark, align="center", bold=True, line=1.2, vcenter=True)
+    if subject == "Computer Science" and "\n" in eq.strip():
+        # Short code snippet: left-aligned, indentation kept (non-breaking spaces).
+        lines = [ln.rstrip() for ln in eq.strip("\n").splitlines()]
+        eq = "\n".join(" " * (len(ln) - len(ln.lstrip(" "))) + ln.lstrip(" ") for ln in lines)
+        c.text(fitz.Rect(card.x0 + 70, card.y0 + 20, card.x1 - 50, card.y1 - 50), eq,
+               body_px=44, color=dark, align="left", bold=True, line=1.3, vcenter=True)
+    else:
+        c.text(fitz.Rect(card.x0 + 30, card.y0 + 20, card.x1 - 30, card.y1 - 30), eq,
+               body_px=62, color=dark, align="center", bold=True, line=1.2, vcenter=True)
     c.footer(ctx["chapter"])
     return c.save(path)
 
@@ -302,7 +341,7 @@ def build_section_slides(section, subject: str, out_dir: str, language: str = "E
     language: "English" or "Kannada". chapter_title is shown in the footer (optional)."""
     check_fonts()
     os.makedirs(out_dir, exist_ok=True)
-    lab = LABELS.get(language, LABELS["English"])
+    lab = get_labels(language, subject)
     p = lambda name: os.path.join(out_dir, name)
 
     plan = [("01_hook.png", lambda path, ctx: _slide_hook(section, subject, path, ctx)),

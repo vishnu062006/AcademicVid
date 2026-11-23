@@ -5,6 +5,12 @@ Supports both English and Kannada narration via the `language` parameter.
 """
 import os
 import json
+
+# gRPC's built-in DNS resolver fails on networks whose DNS server is an IPv6 link-local
+# address (seen on a home router: "Could not contact DNS servers"). The OS resolver works
+# everywhere, so use it. Must be set before google.generativeai (gRPC) is imported.
+os.environ.setdefault("GRPC_DNS_RESOLVER", "native")
+
 import google.generativeai as genai
 from pydantic import ValidationError
 
@@ -13,6 +19,9 @@ from content_validators import validate_narration_length, validate_kannada_scrip
 from kannada_quality import fix_known_terms, find_glitches
 
 MODEL_NAME = "gemini-3.5-flash-lite"
+# A whole lesson is one long reply. On the free tier we measured 66 s for just 2 topics,
+# so 60 s was too short and full chapters timed out. 240 s leaves room for a full chapter.
+GEMINI_TIMEOUT_SECONDS = 240
 
 SYSTEM_PROMPT = """You are an expert NCERT curriculum teacher creating structured
 video lesson content for Class 6-12 Indian students (Karnataka state board priority),
@@ -181,13 +190,128 @@ or (b) plain English letters (a-z, A-Z) for technical/scientific terms. NEVER us
 Hindi/Devanagari script, Tamil script, Telugu script, Bengali script, or any other
 script. If you are not certain a character is correct Kannada script, replace it
 with the English equivalent word instead. Double-check every word before finalizing.
+
+Use simple, natural, student-friendly Kannada while preserving scientific accuracy and including English equivalents in parentheses for difficult technical terms (e.g., ಉತ್ಕರ್ಷಣ (Oxidation), ಸ್ಥಾನಪಲ್ಲಟ (Displacement), ಆವಿ (Vapour)).
+
+Only in the narration of the LAST section, end with one short, polite Kannada thank-you
+and a line of encouragement for the students. Do NOT add a thank-you to any other section.
 """
 
 
-def _get_model(language: str = "English"):
+# ---------------------------------------------------------------------------
+# Lesson modes. The JSON shape (schema.py) is the same for every mode, so every
+# output (video, PPT, notes, flashcards) works unchanged; only the MEANING of the
+# fields changes, and slides.get_labels() shows matching headings.
+# ---------------------------------------------------------------------------
+MODE_CHAPTER = "chapter"                # textbook chapter (science, maths, social...)
+MODE_KANNADA_LIT = "kannada_literature" # Kannada subject: a story (ಗದ್ಯ) or poem (ಪದ್ಯ)
+MODE_TOPICS = "topics"                  # custom subject + topic list, e.g. CSE
+MODES = (MODE_CHAPTER, MODE_KANNADA_LIT, MODE_TOPICS)
+
+SYSTEM_PROMPT_KANNADA_LITERATURE = """You are an experienced Kannada-medium teacher of the
+KANNADA LANGUAGE subject for Karnataka state board students (Class 6-10 / PUC). The input is
+a Kannada textbook lesson: either a story / prose lesson (ಗದ್ಯ) or a poem (ಪದ್ಯ).
+
+This is NOT a science lesson. Do not explain it as concepts and facts. Teach it the way a good
+Kannada teacher does in class: follow the story or poem IN ORDER, part by part, and help the
+student enjoy it, understand it, and write good exam answers about it.
+
+Write EVERYTHING in natural, school-level Kannada script (ಕನ್ನಡ ಲಿಪಿ). Never use English
+letters, Hindi/Devanagari or any other script. Never transliterate.
+
+Break the lesson into sections that follow the text in order: for a story, one section per
+major part of the story (beginning, each important event, ending); for a poem, one section per
+stanza or group of stanzas. Then add ONE final section about the whole lesson: its central
+idea / message, the author or poet (only if the text names them), and the values it teaches.
+
+For EACH section, the fields mean:
+
+- title: a short Kannada heading for this part (e.g. "ಕಥೆಯ ಆರಂಭ", "ಮೊದಲ ಪದ್ಯಭಾಗ").
+
+- hook: ಸಂದರ್ಭ - one or two lines that set the scene: where we are in the story/poem, who is
+  speaking or what is happening. For the final section: why this lesson matters to students.
+
+- concept: ಭಾವಾರ್ಥ / ಸಾರಾಂಶ - explain THIS part in simple, clear Kannada prose, in 3-5
+  sentences, in the order it happens. For a poem, give the meaning of the lines (ಭಾವಾರ್ಥ),
+  not a word-by-word translation.
+
+- indian_example: ಜೀವನಕ್ಕೆ ಹೊಂದಾಣಿಕೆ - connect this part to the student's own life,
+  family, village or school in Karnataka, or to the value it teaches (ಜೀವನ ಮೌಲ್ಯ).
+
+- key_points: exactly 3 items. Prefer difficult words with their meanings, written as
+  "ಪದ - ಅರ್ಥ" (e.g. "ನೇಸರ - ಸೂರ್ಯ"). If the part has fewer than 3 hard words, add the most
+  important event, character trait or literary point (ಅಲಂಕಾರ, ಛಂದಸ್ಸು) a student must remember.
+
+- misconception: ಗಮನಿಸಿ - one specific thing students often get wrong in exams about THIS
+  part: confusing characters, the wrong speaker in a ಸಂದರ್ಭ question, a misread word or line,
+  or mixing up the poet's name. Be specific, not generic.
+
+- key_equation: the ONE most important line (or two lines) from the original text in this
+  part, quoted EXACTLY as written in the input - the kind of line that comes in
+  "ಸಂದರ್ಭ ಸಹಿತ ವಿವರಿಸಿ" exam questions. Copy it character for character from the input;
+  never invent or "improve" a line. Leave it as an empty string if no line is worth quoting.
+
+- narration: a warm, storytelling explanation IN KANNADA for text-to-speech, 150-300 words.
+  Tell this part of the story (or explain these lines) as a teacher would aloud in class:
+  set the scene, retell what happens with feeling, explain the meaning and the hard words,
+  connect it to the student's life, and mention the common mistake. No symbols or numbers in
+  digits; write them as words. In the LAST section only, end with one short, polite Kannada
+  thank-you and a line of encouragement for the students.
+
+- quiz: one question in Karnataka board style about this part (who said it, what happened,
+  what a word means, or the meaning of a line), 4 options, the correct answer_index, and a
+  short explanation in Kannada.
+
+Rules:
+- Output ONLY valid JSON matching the given schema. JSON keys stay in English; values in Kannada.
+- subject must be "Kannada". chapter_title is the lesson's name as written in the text.
+- Stay faithful to the text: do not add events, characters or lines that are not in it.
+"""
+
+TOPIC_MODE_PREFIX = """IMPORTANT - THIS INPUT IS DIFFERENT FROM A TEXTBOOK CHAPTER.
+The input is a teacher's own syllabus: a subject, a level, and a list of topics (sometimes
+with short notes). There is no textbook text. Follow these rules, which OVERRIDE any rule
+below that talks about a textbook, NCERT text, or "facts grounded in the source text":
+
+- Create EXACTLY one section per topic, in the same order as the list. Do not skip, merge
+  or add topics. Use the topic name as the section title.
+- Teach each topic from your own knowledge, at the stated level, covering every point a
+  student needs for exams and interviews at that level. If the teacher wrote notes under a
+  topic, make sure every one of those points is covered.
+- Accuracy matters more than anything else. Use standard, correct terminology. Never invent
+  facts, APIs, commands, formulas or results; if something is uncertain, leave it out.
+- For computer science: indian_example should be a real-world Indian example where it fits
+  (UPI payments, IRCTC booking, Aadhaar, railway reservation queues, mobile recharge, etc.);
+  key_equation may hold a formula, a time complexity (e.g. "O(n log n)"), or a SHORT piece of
+  code or pseudo-code of at most 4 lines that is central to the topic; narration must never
+  read code symbols aloud - describe what the code does in words.
+- subject: use "Computer Science" for any computing subject, otherwise the closest value.
+- chapter_title: the subject name the teacher gave.
+
+"""
+
+
+def _system_prompt(language: str, mode: str) -> str:
+    if mode == MODE_KANNADA_LIT:
+        return SYSTEM_PROMPT_KANNADA_LITERATURE
+    base = SYSTEM_PROMPT if language == "English" else SYSTEM_PROMPT_KANNADA
+    if mode == MODE_TOPICS:
+        return TOPIC_MODE_PREFIX + base
+    return base
+
+
+def build_topics_input(subject: str, level: str, topics_text: str) -> str:
+    """Turn the custom-topics form into the text sent to Gemini (topic mode)."""
+    return (
+        "Subject: {}\nLevel: {}\n\nTopics to cover, in this order "
+        "(lines starting with '-' under a topic are the teacher's notes for it):\n{}"
+    ).format(subject.strip(), level.strip(), topics_text.strip())
+
+
+def _get_model(language: str = "English", mode: str = MODE_CHAPTER):
     api_key = os.environ.get("GOOGLE_API_KEY")
     genai.configure(api_key=api_key)
-    prompt = SYSTEM_PROMPT if language == "English" else SYSTEM_PROMPT_KANNADA
+    prompt = _system_prompt(language, mode)
     return genai.GenerativeModel(
         MODEL_NAME,
         generation_config={
@@ -199,7 +323,8 @@ def _get_model(language: str = "English"):
     )
 
 
-def structure_chapter(chapter_text: str, language: str = "English", max_retries: int = 2) -> Chapter:
+def structure_chapter(chapter_text: str, language: str = "English", max_retries: int = 2,
+                      mode: str = MODE_CHAPTER) -> Chapter:
     """
     Sends the whole chapter in ONE call. Retries on invalid JSON or schema
     mismatch. Narration length issues are logged as warnings, not treated
@@ -207,36 +332,49 @@ def structure_chapter(chapter_text: str, language: str = "English", max_retries:
     chapter's worth of content.
 
     language: "English" or "Kannada" — determines which prompt is used.
+    mode: MODE_CHAPTER (default, unchanged behaviour), MODE_KANNADA_LIT (Kannada subject:
+          story/poem; always written in Kannada) or MODE_TOPICS (custom topic list).
     """
-    model = _get_model(language)
+    if mode not in MODES:
+        mode = MODE_CHAPTER
+    if mode == MODE_KANNADA_LIT:
+        language = "Kannada"
+    model = _get_model(language, mode)
     last_error = None
     last_valid_chapter = None
 
     for attempt in range(max_retries + 1):
-        response = model.generate_content(chapter_text, request_options={"timeout": 60})
+        response = model.generate_content(chapter_text, request_options={"timeout": GEMINI_TIMEOUT_SECONDS})
         raw_text = response.text
 
         try:
             data = json.loads(raw_text)
+            if mode == MODE_KANNADA_LIT:
+                data["subject"] = "Kannada"   # always drive the story/poem labels and theme
             chapter = Chapter.model_validate(data)
 
-            if language == "Kannada":
+            # KNOWN_FIXES are science-term corrections; they must not rewrite a story or poem.
+            if language == "Kannada" and mode != MODE_KANNADA_LIT:
                 chapter = fix_known_terms(chapter)
-            
+
             last_valid_chapter = chapter
 
-            issues = validate_narration_length(chapter, language=language)
+            # Length problems are only logged: a slightly short or long narration is
+            # still a usable lesson, and a retry costs a whole Gemini call (free-tier quota).
+            length_issues = validate_narration_length(chapter, language=language)
+            if length_issues:
+                print(f"[Warning] Narration length (attempt {attempt + 1}): {length_issues}")
 
+            # Wrong script (Hindi letters, Latin glued into Kannada words) is a real defect
+            # students would see and hear, so that one is worth another call.
+            script_issues = []
             if language == "Kannada":
-                issues += validate_kannada_script(chapter) + find_glitches(chapter)
-            
-            if issues:
-                print(f"[Warning] Content/Length issues (attempt {attempt + 1}): {issues}")
-                if attempt < max_retries:
-                    continue  # try again for a better result
-                else:
-                    print("[Warning] Max retries reached — proceeding with current chapter despite length/content issues.")
-                    return chapter
+                script_issues = validate_kannada_script(chapter) + find_glitches(chapter)
+            if script_issues and attempt < max_retries:
+                print(f"[Warning] Kannada script issues (attempt {attempt + 1}), retrying: {script_issues}")
+                continue
+            if script_issues:
+                print("[Warning] Max retries reached — using the chapter despite script issues.")
 
             return chapter
 

@@ -21,8 +21,21 @@ _TEMPLATES = {
 }
 
 
+# Kannada-subject (story / poem) lessons: the fields hold meaning, life connection,
+# word meanings and exam pitfalls, so the questions are asked that way. NEEDS REVIEW.
+_KANNADA_LITERATURE = {
+    "concept": "“{t}” ಭಾಗದ ಭಾವಾರ್ಥ / ಸಾರಾಂಶ ಏನು?",
+    "example": "“{t}” ಭಾಗವು ನಮ್ಮ ಜೀವನಕ್ಕೆ ಹೇಗೆ ಹೊಂದುತ್ತದೆ?",
+    "points": "“{t}” ಭಾಗದ ಕಠಿಣ ಪದಗಳ ಅರ್ಥ ಮತ್ತು ಮುಖ್ಯ ಅಂಶಗಳನ್ನು ತಿಳಿಸಿ.",
+    "mistake": "“{t}” ಭಾಗದಲ್ಲಿ ಪರೀಕ್ಷೆಯಲ್ಲಿ ಗಮನಿಸಬೇಕಾದ ಅಂಶ ಯಾವುದು?",
+}
+
+
 def generate_flashcards(chapter, language: str = "English"):
-    tpl = _TEMPLATES.get(language, _TEMPLATES["English"])
+    if getattr(chapter, "subject", "") == "Kannada":
+        tpl = _KANNADA_LITERATURE
+    else:
+        tpl = _TEMPLATES.get(language, _TEMPLATES["English"])
     cards = []
     for s in chapter.sections:
         t = s.title

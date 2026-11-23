@@ -12,6 +12,7 @@ CHAPTER_MANIFEST = {
     "Class 10": {
         "Science": {
             "Chapter 1: Chemical Reactions and Equations": "jesc101.pdf",
+            "Chapter 2: Acids, Bases and Salts": "jesc102.pdf",
         },
         "Math": {
             "Chapter 1: Real Numbers": "jemh101.pdf",
