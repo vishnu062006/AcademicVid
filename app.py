@@ -15,13 +15,17 @@ from manifest import CHAPTER_MANIFEST
 from pdf_parser import extract_chapter
 from ai_structuring import (
     structure_chapter, build_topics_input, MODE_CHAPTER, MODE_KANNADA_LIT, MODE_TOPICS,
+    MODEL_NAME,
 )
 from ocr import transcribe_notes, pdf_pages_as_images, MAX_FILES as OCR_MAX_FILES
 from library import resolve_library_pdf, entry_is_available, LibraryDownloadError
 from pdf_parser import looks_like_legacy_kannada
 from slides import build_section_slides
-from tts import synthesize_narration, VOICE_EN, VOICE_KN
-from video_builder import build_section_video, concatenate_section_videos
+from tts import synthesize_many, VOICE_EN, VOICE_KN
+from video_builder import build_lesson_video, join_audio
+from cache_store import (
+    lesson_key, load_lesson, save_lesson, is_ready, prune_outputs, output_path as cached_output,
+)
 from ppt_export import export_chapter_to_pptx
 from transcript_export import export_transcript_pdf
 from flashcards import generate_flashcards
@@ -237,6 +241,7 @@ def cleanup_old_sessions() -> None:
                 shutil.rmtree(path, ignore_errors=True)
     except Exception:
         pass  # cleanup must never break the app
+    prune_outputs()   # finished videos/PPTs/notes cache stays under its size limit
 
 
 # ---------------------------------------------------------------------
@@ -690,13 +695,22 @@ def get_selection() -> dict:
 # ---------------------------------------------------------------------
 @st.cache_data(show_spinner=False, max_entries=64)
 def cached_structure_chapter(clean_text: str, language: str, mode: str = MODE_CHAPTER):
-    """One Gemini call per (text, language, lesson mode) for the life of the server.
+    """One Gemini call per (text, language, lesson mode), ever.
 
-    The same library chapter clicked again, by anyone, costs no quota. Errors are not
-    cached, so a failed call is retried on the next click. Streamlit returns a fresh copy
-    each time, so edits in the review form never change the cached lesson.
+    Looks first in lessons/ (pre-made, committed: library chapters never wait for Gemini),
+    then in lesson_cache/ (made earlier on this server), and only then asks Gemini and
+    saves the result. Errors are not cached, so a failed call is retried on the next click.
+    Streamlit returns a fresh copy each time, so review-form edits never change the cache.
     """
-    return structure_chapter(clean_text, language=language, mode=mode)
+    key = lesson_key(clean_text, language, mode, MODEL_NAME)
+    chapter = load_lesson(key)
+    if chapter is None:
+        chapter = structure_chapter(clean_text, language=language, mode=mode)
+        try:
+            save_lesson(key, chapter)
+        except OSError:
+            pass   # a read-only disk must not break the lesson
+    return chapter
 
 
 @st.cache_data(show_spinner=False, max_entries=64)
@@ -914,75 +928,47 @@ def execute_media_generation(output_type: str, session_dir: str) -> None:
     try:
         with st.status(t("status_building"), expanded=True) as status:
             if output_type == "video":
-                section_video_paths = []
-                total = len(chapter.sections)
-
-                for i, section in enumerate(chapter.sections):
-                    section_dir = os.path.join(session_dir, f"section_{i}")
-                    slide_dir = os.path.join(section_dir, "slides")
-                    os.makedirs(section_dir, exist_ok=True)
-
-                    status.write(t("status_slides", i=i + 1, n=total))
-                    slide_paths = build_section_slides(
-                        section,
-                        chapter.subject,
-                        slide_dir,
-                        language=selected_language,
-                        chapter_title=chapter.chapter_title,
+                final_path = cached_output(chapter, selected_language, "video", "mp4")
+                if is_ready(final_path):
+                    status.write(t("status_cached"))        # same lesson made before: instant
+                else:
+                    total = len(chapter.sections)
+                    status.write(t("status_slides_all", n=total))
+                    slide_groups = [
+                        build_section_slides(
+                            section, chapter.subject,
+                            os.path.join(session_dir, f"section_{i}", "slides"),
+                            language=selected_language, chapter_title=chapter.chapter_title,
+                        )
+                        for i, section in enumerate(chapter.sections)
+                    ]
+                    # All sections are recorded at the same time (and cached), then the
+                    # whole lesson is encoded in one fast ffmpeg run.
+                    status.write(t("status_voice_all", n=total))
+                    audio_paths = synthesize_many(
+                        [section.narration for section in chapter.sections], voice=narration_voice
                     )
-
-                    status.write(t("status_narration", i=i + 1, n=total))
-                    audio_path = os.path.join(section_dir, "narration.mp3")
-                    synthesize_narration(
-                        section.narration,
-                        audio_path,
-                        voice=narration_voice,
-                    )
-
-                    status.write(t("status_assembling", i=i + 1, n=total))
-                    video_path = os.path.join(section_dir, "video.mp4")
-                    build_section_video(slide_paths, audio_path, video_path)
-                    section_video_paths.append(video_path)
-
-                final_path = os.path.join(session_dir, "final_output.mp4")
-                status.write(t("status_combining"))
-                concatenate_section_videos(section_video_paths, final_path)
+                    status.write(t("status_combining"))
+                    build_lesson_video(list(zip(slide_groups, audio_paths)), final_path)
                 st.session_state.final_video_path = final_path
 
             elif output_type == "ppt":
                 status.write(t("status_ppt"))
-                path = os.path.join(session_dir, "chapter.pptx")
-                export_chapter_to_pptx(
-                    chapter,
-                    path,
-                    language=selected_language,
-                )
+                path = cached_output(chapter, selected_language, "ppt", "pptx")
+                if not is_ready(path):
+                    export_chapter_to_pptx(chapter, path, language=selected_language)
                 st.session_state.final_ppt_path = path
 
-                # Generate a separate narration MP3 alongside the PPT.
-                # A narration failure must not invalidate the presentation.
-                narration_text = "\n\n".join(
-                    narration
-                    for section in chapter.sections
-                    if (
-                        narration := str(
-                            getattr(section, "narration", "") or ""
-                        ).strip()
-                    )
-                )
-
-                if narration_text:
+                # A separate narration MP3 alongside the PPT. Sections are recorded in
+                # parallel and joined. A narration failure must not invalidate the slides.
+                narrations = [str(getattr(sec, "narration", "") or "").strip() for sec in chapter.sections]
+                narrations = [n for n in narrations if n]
+                if narrations:
                     status.write(t("status_audio", language=language_name))
-                    audio_path = os.path.join(
-                        session_dir, "chapter_narration.mp3"
-                    )
-
+                    audio_path = cached_output(chapter, selected_language, "narration", "mp3")
                     try:
-                        synthesize_narration(
-                            narration_text,
-                            audio_path,
-                            voice=narration_voice,
-                        )
+                        if not is_ready(audio_path):
+                            join_audio(synthesize_many(narrations, voice=narration_voice), audio_path)
                         st.session_state.final_audio_path = audio_path
                     except Exception as audio_exc:
                         st.session_state.pop("final_audio_path", None)
@@ -993,12 +979,9 @@ def execute_media_generation(output_type: str, session_dir: str) -> None:
 
             elif output_type == "transcript":
                 status.write(t("status_notes"))
-                path = os.path.join(session_dir, "transcript.pdf")
-                export_transcript_pdf(
-                    chapter,
-                    path,
-                    language=selected_language,
-                )
+                path = cached_output(chapter, selected_language, "notes", "pdf")
+                if not is_ready(path):
+                    export_transcript_pdf(chapter, path, language=selected_language)
                 st.session_state.final_transcript_path = path
 
             elif output_type == "flashcards":

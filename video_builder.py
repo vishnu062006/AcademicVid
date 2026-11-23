@@ -84,3 +84,95 @@ def concatenate_section_videos(section_video_paths: list, out_path: str) -> str:
         for c in clips:
             c.close()
     return out_path
+
+# ---------------------------------------------------------------------------
+# Fast path (used by the app): the whole lesson in ONE ffmpeg run.
+#
+# Slides are still pictures, so there is no need to draw 10 frames a second through
+# MoviePy. Each slide becomes ONE video frame that lasts for its share of the narration
+# (variable frame rate), with x264 tuned for still images. Measured on a 6-section,
+# 12 min lesson: 22 s -> ~2.5 s to encode, 6.65 MB -> ~4 MB, and slides stay exactly in
+# sync with the voice. (A fixed 2 fps rounded every slide up and drifted 17 s behind.)
+# Output stays phone-safe: H.264 yuv420p + AAC, faststart.
+# ---------------------------------------------------------------------------
+FAST_CRF = "30"               # still slides compress very well; text stays sharp
+FAST_AUDIO_BITRATE = "40k"    # mono speech; the voice source itself is 48 kbps mp3
+
+
+def _ff_escape(path: str) -> str:
+    return os.path.abspath(path).replace("'", "'\\''")
+
+
+def media_duration(path: str) -> float:
+    """Length of an audio/video file in seconds (reads ffmpeg's header info)."""
+    import re
+    info = subprocess.run([_ffmpeg_exe(), "-hide_banner", "-i", path],
+                          capture_output=True, text=True).stderr
+    m = re.search(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)", info)
+    if not m:
+        raise RuntimeError("could not read duration of " + path)
+    h, mnt, s = m.groups()
+    return int(h) * 3600 + int(mnt) * 60 + float(s)
+
+
+def build_lesson_video(sections, out_path: str) -> str:
+    """sections: list of (slide_paths, narration_mp3). Each section's narration is split
+    evenly across its slides (same timing as build_section_video). Returns out_path."""
+    os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
+    img_list, aud_list = out_path + ".images.txt", out_path + ".audio.txt"
+    tmp = out_path + ".part.mp4"
+    try:
+        last_slide = None
+        with open(img_list, "w") as fi, open(aud_list, "w") as fa:
+            fi.write("ffconcat version 1.0\n")
+            for slide_paths, audio in sections:
+                per_slide = media_duration(audio) / max(1, len(slide_paths))
+                for p in slide_paths:
+                    fi.write("file '{}'\nduration {:.3f}\n".format(_ff_escape(p), per_slide))
+                    last_slide = p
+                fa.write("file '{}'\n".format(_ff_escape(audio)))
+            # ffmpeg ignores the last duration unless the last picture is listed again
+            if last_slide:
+                fi.write("file '{}'\n".format(_ff_escape(last_slide)))
+        def cmd(vfr_flag):
+            return [
+                _ffmpeg_exe(), "-y", "-hide_banner", "-loglevel", "error",
+                "-f", "concat", "-safe", "0", "-i", img_list,
+                "-f", "concat", "-safe", "0", "-i", aud_list,
+                "-map", "0:v", "-map", "1:a",
+                vfr_flag, "vfr", "-vf", "format=yuv420p",
+                "-c:v", "libx264", "-preset", "veryfast", "-tune", "stillimage",
+                "-crf", FAST_CRF, "-g", "1",          # every slide is a keyframe: instant seeking
+                "-c:a", "aac", "-b:a", FAST_AUDIO_BITRATE, "-ac", "1",
+                "-movflags", "+faststart", tmp,
+            ]
+        done = subprocess.run(cmd("-fps_mode"), capture_output=True, text=True)
+        if done.returncode != 0:               # ffmpeg older than 5.1 only knows -vsync
+            done = subprocess.run(cmd("-vsync"), capture_output=True, text=True)
+        if done.returncode != 0 or not os.path.exists(tmp) or os.path.getsize(tmp) == 0:
+            raise RuntimeError("ffmpeg failed: " + done.stderr[-400:])
+        os.replace(tmp, out_path)
+    finally:
+        for f in (img_list, aud_list, tmp):
+            if os.path.exists(f):
+                os.remove(f)
+    return out_path
+
+
+def join_audio(mp3_paths, out_path: str) -> str:
+    """Join narration mp3s into one mp3 (no re-encode). Used for the PPT's audio track."""
+    os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
+    lst = out_path + ".list.txt"
+    try:
+        with open(lst, "w") as f:
+            for p in mp3_paths:
+                f.write("file '{}'\n".format(_ff_escape(p)))
+        done = subprocess.run([_ffmpeg_exe(), "-y", "-hide_banner", "-loglevel", "error",
+                               "-f", "concat", "-safe", "0", "-i", lst, "-c", "copy", out_path],
+                              capture_output=True, text=True)
+        if done.returncode != 0:
+            raise RuntimeError("ffmpeg join failed: " + done.stderr[-300:])
+    finally:
+        if os.path.exists(lst):
+            os.remove(lst)
+    return out_path

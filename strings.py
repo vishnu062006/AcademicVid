@@ -149,6 +149,9 @@ STRINGS = {
         "quiz_correct": "Correct!",
         "quiz_wrong": "Not quite. The correct answer is: {answer}",
         "quiz_unanswered": "Not answered. The correct answer is: {answer}",
+        "status_cached": "This lesson was made before: ready instantly.",
+        "status_slides_all": "Drawing the slides for all {n} sections…",
+        "status_voice_all": "Recording the narration for all {n} sections at once…",
         "err_slow": "The AI service is busy and took too long to answer. Please try again in a minute.",
         "err_network": "Could not connect to the internet or the AI service. Please check your connection and try again.",
         "err_too_long": "This PDF has {pages} pages. The limit is {limit} pages, so lessons stay quick on slow connections. Please upload a shorter chapter.",
@@ -333,6 +336,9 @@ STRINGS = {
         "quiz_correct": "ಸರಿ ಉತ್ತರ!",  # NEEDS REVIEW
         "quiz_wrong": "ತಪ್ಪು. ಸರಿಯಾದ ಉತ್ತರ: {answer}",  # NEEDS REVIEW
         "quiz_unanswered": "ಉತ್ತರಿಸಿಲ್ಲ. ಸರಿಯಾದ ಉತ್ತರ: {answer}",  # NEEDS REVIEW
+        "status_cached": "ಈ ಪಾಠ ಮೊದಲೇ ತಯಾರಾಗಿದೆ: ತಕ್ಷಣ ಸಿದ್ಧ.",  # NEEDS REVIEW
+        "status_slides_all": "ಎಲ್ಲ {n} ಭಾಗಗಳ ಸ್ಲೈಡ್‌ಗಳನ್ನು ರಚಿಸಲಾಗುತ್ತಿದೆ…",  # NEEDS REVIEW
+        "status_voice_all": "ಎಲ್ಲ {n} ಭಾಗಗಳ ಧ್ವನಿಯನ್ನು ಒಟ್ಟಿಗೆ ರೆಕಾರ್ಡ್ ಮಾಡಲಾಗುತ್ತಿದೆ…",  # NEEDS REVIEW
         "err_slow": "AI ಸೇವೆ ಈಗ ತುಂಬಾ ಕಾರ್ಯನಿರತವಾಗಿದೆ, ಉತ್ತರಿಸಲು ತಡವಾಯಿತು. ಒಂದು ನಿಮಿಷದ ನಂತರ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",  # NEEDS REVIEW
         "err_network": "ಇಂಟರ್ನೆಟ್ ಅಥವಾ AI ಸೇವೆಗೆ ಸಂಪರ್ಕಿಸಲು ಆಗಲಿಲ್ಲ. ದಯವಿಟ್ಟು ನಿಮ್ಮ ಸಂಪರ್ಕ ಪರಿಶೀಲಿಸಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",  # NEEDS REVIEW
         "err_too_long": "ಈ PDF ನಲ್ಲಿ {pages} ಪುಟಗಳಿವೆ. ನಿಧಾನ ಇಂಟರ್ನೆಟ್‌ನಲ್ಲೂ ಪಾಠ ಬೇಗ ತಯಾರಾಗಲು ಮಿತಿ {limit} ಪುಟಗಳು. ದಯವಿಟ್ಟು ಚಿಕ್ಕ ಅಧ್ಯಾಯವನ್ನು ಅಪ್‌ಲೋಡ್ ಮಾಡಿ.",  # NEEDS REVIEW

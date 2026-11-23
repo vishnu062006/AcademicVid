@@ -26,3 +26,5 @@ apply_issue*.py
 *.save
 FETCH_HEAD
 library_cache/
+lesson_cache/
+output_cache/

@@ -82,7 +82,13 @@ def export_transcript_pdf(chapter, out_path: str, language: str = "English") -> 
         page.insert_text((48, mediabox.height - 28), APP_NAME, fontsize=8, color=(0.4, 0.4, 0.4))
         page.insert_text((mediabox.width - 80, mediabox.height - 28), f"{i + 1} / {n}",
                          fontsize=8, color=(0.4, 0.4, 0.4))
-    doc.save(out_path)
+    # Keep only the letters actually used from each font and compress: the full Kannada
+    # + DejaVu fonts made a 2.2 MB notes PDF; subset it is a fraction of that (less data).
+    try:
+        doc.subset_fonts()
+    except Exception:
+        pass
+    doc.save(out_path, garbage=3, deflate=True)
     doc.close()
     os.remove(tmp)
     return out_path

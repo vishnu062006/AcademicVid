@@ -107,3 +107,19 @@ Also fixed: lesson generation failing on networks with an IPv6 DNS server (as on
 - **Quiz:** at the end of every lesson the teacher is asked "Want a quick quiz on this lesson?"; on yes,
   one board-exam style question per section is shown, with score, answers and explanations.
 - **PDFs with old Kannada fonts or scans:** pages are read with Gemini vision instead of the broken text layer.
+
+## Speed and data use (24 Nov 2026)
+
+Measured on a 6-section, 12-minute lesson (after the AI step):
+
+| | Before | Now |
+|---|---|---|
+| Voice | 29 s (one section at a time) | ~2–8 s (all sections at once, cached on disk) |
+| Video encoding | 22 s (MoviePy, 10 frames/s) | ~2.5 s (one ffmpeg run, one frame per slide) |
+| Same lesson opened again | full rebuild | **0.1 s** (finished files cached in `output_cache/`) |
+| Video size | 6.65 MB | ~4.2 MB (slides stay exactly in sync with the voice) |
+| Notes PDF size | 2.2 MB | ~140 KB (fonts subset) |
+| Library chapter, AI step | 1–4 min on Gemini free tier | instant: pre-made in `lessons/` (`scripts/pregenerate_lessons.py`) |
+
+Lessons made at runtime are also kept in `lesson_cache/`, so the same text is never sent to Gemini twice.
+After a prompt change, bump `LESSON_FORMAT_VERSION` in `cache_store.py` and re-run the pre-generation script.
