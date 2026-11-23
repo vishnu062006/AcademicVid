@@ -137,6 +137,18 @@ STRINGS = {
         "err_no_chapter": "No chapter is available to generate.",
         "err_generation": "Generation failed: {error}",
         "err_quota": "Today’s free AI limit has been reached. Please try again in a few minutes, or tomorrow.",
+        "status_downloading": "Getting the chapter from the official textbook website…",
+        "status_reading_pages": "Reading the pages (this book uses an old Kannada font or is scanned)… this can take a minute.",
+        "err_library_download": "Could not get this chapter from the official textbook website. Please try again in a few minutes, or upload the PDF yourself.",
+        "quiz_offer_title": "Want a quick quiz on this lesson?",
+        "quiz_offer_desc": "{n} short board-exam style questions, with answers and explanations. Useful to check what students remember.",
+        "quiz_offer_btn": "Yes, show the quiz",
+        "quiz_heading": "Quick quiz",
+        "quiz_check": "Check answers",
+        "quiz_score": "Score: {score} / {total}",
+        "quiz_correct": "Correct!",
+        "quiz_wrong": "Not quite. The correct answer is: {answer}",
+        "quiz_unanswered": "Not answered. The correct answer is: {answer}",
         "err_slow": "The AI service is busy and took too long to answer. Please try again in a minute.",
         "err_network": "Could not connect to the internet or the AI service. Please check your connection and try again.",
         "err_too_long": "This PDF has {pages} pages. The limit is {limit} pages, so lessons stay quick on slow connections. Please upload a shorter chapter.",
@@ -309,6 +321,18 @@ STRINGS = {
         "err_no_chapter": "ರಚಿಸಲು ಯಾವುದೇ ಅಧ್ಯಾಯ ಲಭ್ಯವಿಲ್ಲ.",  # NEEDS REVIEW
         "err_generation": "ರಚನೆ ವಿಫಲವಾಯಿತು: {error}",  # NEEDS REVIEW
         "err_quota": "ಇಂದಿನ ಉಚಿತ AI ಮಿತಿ ಮುಗಿದಿದೆ. ದಯವಿಟ್ಟು ಕೆಲವು ನಿಮಿಷಗಳ ನಂತರ ಅಥವಾ ನಾಳೆ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",  # NEEDS REVIEW
+        "status_downloading": "ಅಧಿಕೃತ ಪಠ್ಯಪುಸ್ತಕ ಜಾಲತಾಣದಿಂದ ಅಧ್ಯಾಯವನ್ನು ತರಲಾಗುತ್ತಿದೆ…",  # NEEDS REVIEW
+        "status_reading_pages": "ಪುಟಗಳನ್ನು ಓದಲಾಗುತ್ತಿದೆ (ಈ ಪುಸ್ತಕ ಹಳೆಯ ಕನ್ನಡ ಫಾಂಟ್‌ನಲ್ಲಿದೆ ಅಥವಾ ಸ್ಕ್ಯಾನ್ ಆಗಿದೆ)… ಒಂದು ನಿಮಿಷ ಆಗಬಹುದು.",  # NEEDS REVIEW
+        "err_library_download": "ಅಧಿಕೃತ ಪಠ್ಯಪುಸ್ತಕ ಜಾಲತಾಣದಿಂದ ಈ ಅಧ್ಯಾಯ ತರಲು ಆಗಲಿಲ್ಲ. ಕೆಲವು ನಿಮಿಷಗಳ ನಂತರ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ, ಅಥವಾ PDF ಅನ್ನು ನೀವೇ ಅಪ್‌ಲೋಡ್ ಮಾಡಿ.",  # NEEDS REVIEW
+        "quiz_offer_title": "ಈ ಪಾಠದ ಮೇಲೆ ಒಂದು ಚಿಕ್ಕ ರಸಪ್ರಶ್ನೆ ಬೇಕೇ?",  # NEEDS REVIEW
+        "quiz_offer_desc": "ಬೋರ್ಡ್ ಪರೀಕ್ಷೆ ಮಾದರಿಯ {n} ಪ್ರಶ್ನೆಗಳು, ಉತ್ತರ ಮತ್ತು ವಿವರಣೆಯೊಂದಿಗೆ. ವಿದ್ಯಾರ್ಥಿಗಳಿಗೆ ಎಷ್ಟು ನೆನಪಿದೆ ಎಂದು ತಿಳಿಯಲು ಉಪಯುಕ್ತ.",  # NEEDS REVIEW
+        "quiz_offer_btn": "ಹೌದು, ರಸಪ್ರಶ್ನೆ ತೋರಿಸಿ",  # NEEDS REVIEW
+        "quiz_heading": "ಚಿಕ್ಕ ರಸಪ್ರಶ್ನೆ",  # NEEDS REVIEW
+        "quiz_check": "ಉತ್ತರ ಪರಿಶೀಲಿಸಿ",  # NEEDS REVIEW
+        "quiz_score": "ಅಂಕ: {score} / {total}",  # NEEDS REVIEW
+        "quiz_correct": "ಸರಿ ಉತ್ತರ!",  # NEEDS REVIEW
+        "quiz_wrong": "ತಪ್ಪು. ಸರಿಯಾದ ಉತ್ತರ: {answer}",  # NEEDS REVIEW
+        "quiz_unanswered": "ಉತ್ತರಿಸಿಲ್ಲ. ಸರಿಯಾದ ಉತ್ತರ: {answer}",  # NEEDS REVIEW
         "err_slow": "AI ಸೇವೆ ಈಗ ತುಂಬಾ ಕಾರ್ಯನಿರತವಾಗಿದೆ, ಉತ್ತರಿಸಲು ತಡವಾಯಿತು. ಒಂದು ನಿಮಿಷದ ನಂತರ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",  # NEEDS REVIEW
         "err_network": "ಇಂಟರ್ನೆಟ್ ಅಥವಾ AI ಸೇವೆಗೆ ಸಂಪರ್ಕಿಸಲು ಆಗಲಿಲ್ಲ. ದಯವಿಟ್ಟು ನಿಮ್ಮ ಸಂಪರ್ಕ ಪರಿಶೀಲಿಸಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",  # NEEDS REVIEW
         "err_too_long": "ಈ PDF ನಲ್ಲಿ {pages} ಪುಟಗಳಿವೆ. ನಿಧಾನ ಇಂಟರ್ನೆಟ್‌ನಲ್ಲೂ ಪಾಠ ಬೇಗ ತಯಾರಾಗಲು ಮಿತಿ {limit} ಪುಟಗಳು. ದಯವಿಟ್ಟು ಚಿಕ್ಕ ಅಧ್ಯಾಯವನ್ನು ಅಪ್‌ಲೋಡ್ ಮಾಡಿ.",  # NEEDS REVIEW

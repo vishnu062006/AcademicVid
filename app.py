@@ -16,7 +16,9 @@ from pdf_parser import extract_chapter
 from ai_structuring import (
     structure_chapter, build_topics_input, MODE_CHAPTER, MODE_KANNADA_LIT, MODE_TOPICS,
 )
-from ocr import transcribe_notes, MAX_FILES as OCR_MAX_FILES
+from ocr import transcribe_notes, pdf_pages_as_images, MAX_FILES as OCR_MAX_FILES
+from library import resolve_library_pdf, entry_is_available, LibraryDownloadError
+from pdf_parser import looks_like_legacy_kannada
 from slides import build_section_slides
 from tts import synthesize_narration, VOICE_EN, VOICE_KN
 from video_builder import build_section_video, concatenate_section_videos
@@ -42,7 +44,10 @@ OUTPUT_CAPTIONS = {
     "Transcript PDF": "Clean, printable study notes",
     "Flashcards": "Quick recall and revision cards",
 }
-SOURCE_OPTIONS = ["Library", "Upload PDF", "Notes", "Topics"]
+# Teachers / students (main page) see only these two. The /bmsce admin page
+# (pages/bmsce.py, password protected) also gets handwritten notes and custom topics.
+PUBLIC_SOURCES = ["Library", "Upload PDF"]
+ADMIN_SOURCES = ["Library", "Upload PDF", "Notes", "Topics"]
 SOURCE_LABEL_KEYS = {
     "Library": "source_library",
     "Upload PDF": "source_upload",
@@ -118,7 +123,11 @@ def reset_pipeline() -> None:
         "retry_state",
         "upload_path",
         "upload_name",
+        "quiz_open",
+        "quiz_result",
     ):
+        st.session_state.pop(key, None)
+    for key in [k for k in st.session_state.keys() if str(k).startswith("quiz_answer_")]:
         st.session_state.pop(key, None)
 
 
@@ -421,7 +430,7 @@ def _index_of(options, value) -> int:
     return options.index(value) if value in options else 0
 
 
-def render_source_picker() -> None:
+def render_source_picker(sources) -> None:
     """Chapter picker + PDF upload on the main page (phones hide the sidebar).
 
     Streamlit 1.31 deletes a widget's state when it is not drawn, and this picker is only
@@ -431,7 +440,9 @@ def render_source_picker() -> None:
     label, and we draw the translated label, so switching language never resets them.
     """
     # Four sources as a 2 x 2 grid of buttons (stays 2 wide on phones, see the CSS).
-    for row in (SOURCE_OPTIONS[:2], SOURCE_OPTIONS[2:]):
+    for row in (sources[:2], sources[2:]):
+        if not row:
+            continue
         cols = st.columns(2, gap="small")
         for col, mode in zip(cols, row):
             with col:
@@ -633,7 +644,8 @@ def get_selection() -> dict:
     upload_name, ready (True when the lesson can be made).
     """
     source = st.session_state.source_mode
-    sel = {"source": source, "pdf_path": None, "text": None, "mode": MODE_CHAPTER,
+    sel = {"source": source, "pdf_path": None, "library_entry": None, "text": None,
+           "mode": MODE_CHAPTER,
            "title": "", "cls": None, "subject": None, "chapter": None, "upload_name": None,
            "ready": False}
     kind = st.session_state.get("lesson_kind", MODE_CHAPTER)
@@ -645,11 +657,12 @@ def get_selection() -> dict:
         subject = st.session_state.get("pick_subject")
         chapter = st.session_state.get("pick_chapter")
         try:
-            path = CHAPTER_MANIFEST[cls][subject][chapter]
+            entry = CHAPTER_MANIFEST[cls][subject][chapter]
         except (KeyError, TypeError):
-            path = None
-        sel.update(pdf_path=path, cls=cls, subject=subject, chapter=chapter,
-                   title=chapter or "", ready=bool(path),
+            entry = None
+        # The PDF itself is fetched only when the lesson is made (it may be downloaded).
+        sel.update(library_entry=entry, cls=cls, subject=subject, chapter=chapter,
+                   title=chapter or "", ready=bool(entry) and entry_is_available(entry),
                    mode=MODE_KANNADA_LIT if subject == "Kannada" else MODE_CHAPTER)
     elif source == "Upload PDF":
         path = st.session_state.get("upload_path")
@@ -686,16 +699,41 @@ def cached_structure_chapter(clean_text: str, language: str, mode: str = MODE_CH
     return structure_chapter(clean_text, language=language, mode=mode)
 
 
+@st.cache_data(show_spinner=False, max_entries=64)
+def cached_page_ocr(pdf_path: str, mtime: float) -> str:
+    """Read a PDF from its page images (one Gemini call), once per file version."""
+    return transcribe_notes(pdf_pages_as_images(pdf_path, max_pages=MAX_PDF_PAGES),
+                            max_files=MAX_PDF_PAGES)
+
+
+def get_pdf_text(pdf_path: str, status) -> str:
+    """Chapter text from a PDF. Falls back to reading the page images when the text
+    layer is unusable: a scanned PDF (no text) or Kannada typed in an old non-Unicode
+    font (KTBS state textbooks), which would otherwise send junk to the AI."""
+    status.write(t("status_extract"))
+    text = extract_chapter(pdf_path).get("clean_text", "")
+    if text.strip() and not looks_like_legacy_kannada(text):
+        return text
+    status.write(t("status_reading_pages"))
+    return cached_page_ocr(pdf_path, os.path.getmtime(pdf_path))
+
+
 def execute_ai_structuring(selection: dict, language: str) -> None:
     mode = selection.get("mode", MODE_CHAPTER)
     if mode == MODE_KANNADA_LIT:
         language = "Kannada"   # Kannada-subject lessons are always taught in Kannada
     try:
         with st.status(t("status_analyzing"), expanded=True) as status:
-            if selection.get("pdf_path"):
-                status.write(t("status_extract"))
-                extracted = extract_chapter(selection["pdf_path"])
-                clean_text = extracted.get("clean_text", "")
+            pdf_path = selection.get("pdf_path")
+            if selection.get("library_entry") is not None:
+                if not isinstance(selection["library_entry"], str):
+                    status.write(t("status_downloading"))
+                try:
+                    pdf_path = resolve_library_pdf(selection["library_entry"])
+                except LibraryDownloadError as exc:
+                    raise FriendlyError("err_library_download") from exc
+            if pdf_path:
+                clean_text = get_pdf_text(pdf_path, status)
             else:
                 clean_text = selection.get("text") or ""
             if not clean_text.strip():
@@ -1037,6 +1075,75 @@ def render_report_button(output_type: str) -> None:
     )
 
 
+def _valid_quizzes(chapter):
+    """(section title, quiz) for every section whose quiz is complete and consistent."""
+    out = []
+    for section in getattr(chapter, "sections", []) or []:
+        q = getattr(section, "quiz", None)
+        if (q and str(q.question).strip() and 2 <= len(q.options) <= 4
+                and 0 <= q.answer_index < len(q.options)):
+            out.append((section.title, q))
+    return out
+
+
+def render_quiz_offer() -> None:
+    """At the end of a lesson, ASK the teacher if they want a quiz; show it only on yes.
+
+    The questions come from the same AI call as the lesson (one per section), so the quiz
+    costs nothing extra. One column, full-width buttons: safe on phones.
+    """
+    quizzes = _valid_quizzes(st.session_state.get("chapter"))
+    if not quizzes:
+        return
+
+    if not st.session_state.get("quiz_open"):
+        st.markdown(
+            f'<div class="panel"><div class="section-heading">{t("quiz_offer_title")}</div>'
+            f'<div class="section-description">{t("quiz_offer_desc", n=len(quizzes))}</div></div>',
+            unsafe_allow_html=True,
+        )
+        if st.button(t("quiz_offer_btn"), use_container_width=True, key="quiz_open_btn"):
+            st.session_state.quiz_open = True
+            st.rerun()
+        return
+
+    st.markdown(f'<div class="section-heading">{t("quiz_heading")}</div>', unsafe_allow_html=True)
+    with st.form("quiz_form"):
+        for i, (_title, q) in enumerate(quizzes, start=1):
+            st.markdown(
+                f'<div class="field-label">{i}. {html.escape(str(q.question))}</div>',
+                unsafe_allow_html=True,
+            )
+            st.radio(
+                f"Question {i}", options=[str(o) for o in q.options], index=None,
+                key=f"quiz_answer_{i}", label_visibility="collapsed",
+            )
+        checked = st.form_submit_button(t("quiz_check"), type="primary", use_container_width=True)
+
+    if checked:
+        # Store the chosen option's position (None = not answered).
+        result = []
+        for i, (_t, q) in enumerate(quizzes, start=1):
+            chosen = st.session_state.get(f"quiz_answer_{i}")
+            opts = [str(o) for o in q.options]
+            result.append(opts.index(chosen) if chosen in opts else None)
+        st.session_state.quiz_result = result
+    result = st.session_state.get("quiz_result")
+    if result and len(result) == len(quizzes):
+        score = sum(1 for given, (_t, q) in zip(result, quizzes) if given == q.answer_index)
+        st.markdown(f"#### {t('quiz_score', score=score, total=len(quizzes))}")
+        for i, (given, (_t, q)) in enumerate(zip(result, quizzes), start=1):
+            right = str(q.options[q.answer_index])
+            if given == q.answer_index:
+                st.success(f"{i}. {t('quiz_correct')}")
+            elif given is None:
+                st.warning(f"{i}. {t('quiz_unanswered', answer=right)}")
+            else:
+                st.error(f"{i}. {t('quiz_wrong', answer=right)}")
+            if str(q.explanation).strip():
+                st.caption(str(q.explanation))
+
+
 def render_completion(output_type: str) -> None:
     st.markdown(f'<div class="step-label">{t("done_step")}</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="section-heading">{t("done_heading")}</div>', unsafe_allow_html=True)
@@ -1120,6 +1227,7 @@ def render_completion(output_type: str) -> None:
         with st.expander(t("view_data")):
             st.json(chapter.model_dump() if hasattr(chapter, "model_dump") else chapter)
 
+    render_quiz_offer()
     render_report_button(output_type)
     st.markdown("")
     if st.button(t("btn_another"), type="primary", use_container_width=True):
@@ -1154,14 +1262,34 @@ def render_error_state() -> None:
 # ---------------------------------------------------------------------
 # Main app
 # ---------------------------------------------------------------------
-def main() -> None:
+def main(admin: bool = False, set_config: bool = True) -> None:
+    """The whole app. admin=True (only from pages/bmsce.py, after the password) adds the
+    handwritten-notes and custom-topics sources; the public page never shows them."""
+    if set_config:
+        set_page_config()
+    sources = ADMIN_SOURCES if admin else PUBLIC_SOURCES
+    init_session_state()
+    # Session state is shared between the main page and /bmsce. Switching page starts a
+    # fresh flow, so nothing made on the admin page ever shows up on the public page.
+    page_id = "admin" if admin else "public"
+    if st.session_state.get("active_page") != page_id:
+        st.session_state.active_page = page_id
+        reset_pipeline()
+    if st.session_state.source_mode not in sources:
+        st.session_state.source_mode = "Library"
+    render_page(sources)
+
+
+def set_page_config() -> None:
     st.set_page_config(
         page_title=f"{APP_NAME} — AI Learning Studio",
         page_icon="A",
         layout="wide",
         initial_sidebar_state="collapsed",
     )
-    init_session_state()
+
+
+def render_page(sources) -> None:
     cleanup_old_sessions()
     inject_custom_css()
     inject_language_css()
@@ -1191,7 +1319,7 @@ def main() -> None:
             unsafe_allow_html=True,
         )
 
-        render_source_picker()
+        render_source_picker(sources)
         # Read the choice again: the picker above may have just changed it.
         selection = get_selection()
 

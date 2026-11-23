@@ -74,15 +74,22 @@ def key():
 check("GOOGLE_API_KEY", key)
 
 
-# 5. every library chapter: file exists, is a PDF, has real text (not a scan)
+# 5. every library chapter: local files exist, are PDFs, have real text (not a scan).
+#    Remote (NCERT / KTBS) entries are only downloaded and checked with --live.
 def manifest():
     import pdfplumber
     from manifest import CHAPTER_MANIFEST
-    problems, n = [], 0
+    problems, n, remote = [], 0, 0
     for cls, subjects in CHAPTER_MANIFEST.items():
         for subj, chapters in subjects.items():
-            for title, path in chapters.items():
+            for title, entry in chapters.items():
                 n += 1
+                if not isinstance(entry, str):
+                    remote += 1
+                    if not entry.get("url", "").startswith("https://"):
+                        problems.append(f"{cls}/{subj}/{title}: bad url")
+                    continue
+                path = entry
                 if not os.path.exists(path):
                     problems.append(f"{cls}/{subj}/{title}: FILE NOT FOUND ({path})")
                     continue
@@ -99,7 +106,7 @@ def manifest():
                     problems.append(f"{cls}/{subj}/{title}: {pages} pages - is this a whole book, not a chapter?")
     if problems:
         raise RuntimeError("\n        ".join([""] + problems))
-    return f"{n} chapters OK"
+    return f"{n} chapters OK ({remote} downloaded from NCERT/KTBS on first use; check with --live)"
 check("Library manifest", manifest)
 
 
@@ -138,6 +145,28 @@ if "--live" in sys.argv:
             out.append(f"{voice.split('-')[0]}:{os.path.getsize(f)}B")
         return " ".join(out)
     check("edge-tts English + Kannada voices", tts)
+
+    def library_downloads():
+        from manifest import CHAPTER_MANIFEST
+        from library import resolve_library_pdf
+        import fitz
+        bad, ok = [], 0
+        for cls, subjects in CHAPTER_MANIFEST.items():
+            for subj, chapters in subjects.items():
+                for title, entry in chapters.items():
+                    if isinstance(entry, str):
+                        continue
+                    try:
+                        with fitz.open(resolve_library_pdf(entry)) as d:
+                            if d.page_count == 0 or d.page_count > 40:
+                                raise RuntimeError(f"{d.page_count} pages")
+                        ok += 1
+                    except Exception as e:
+                        bad.append(f"{cls}/{subj}/{title}: {type(e).__name__}: {str(e)[:80]}")
+        if bad:
+            raise RuntimeError("\n        ".join([""] + bad))
+        return f"{ok} chapters downloaded and cached"
+    check("Library downloads (NCERT / KTBS)", library_downloads)
 
 print()
 for ok, name, msg in results:

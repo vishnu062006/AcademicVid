@@ -95,3 +95,15 @@ toggle only on step 1, 48px buttons, no sideways scroll. Also fixed: the header 
 **Found while testing:** on the free tier one lesson call took 66 s for just 2 topics. The old 60 s limit
 made real lessons fail with a wrong "no internet" message. The limit is now 240 s, with a correct "AI is busy" message.
 Also fixed: lesson generation failing on networks with an IPv6 DNS server (as on Vishnu's Mac).
+
+## Public page vs team page (24 Nov 2026)
+
+- **Main page (teachers):** only *Library* and *Upload PDF*. The Kannada story/poem lesson style stays
+  (Library subject "Kannada", or "Kannada subject: story or poem" for an upload). The page menu and the
+  Streamlit toolbar are hidden (`.streamlit/config.toml`).
+- **`/bmsce` (team only):** password page (`pages/bmsce.py`) with all four sources, including handwritten
+  notes and custom topics. Set `ADMIN_PASSWORD` in Streamlit Cloud -> App settings -> Secrets (and in
+  `.env` locally). Without it the page stays locked.
+- **Quiz:** at the end of every lesson the teacher is asked "Want a quick quiz on this lesson?"; on yes,
+  one board-exam style question per section is shown, with score, answers and explanations.
+- **PDFs with old Kannada fonts or scans:** pages are read with Gemini vision instead of the broken text layer.

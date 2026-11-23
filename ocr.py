@@ -50,10 +50,21 @@ def _shrink_image(data: bytes, mime: str):
         return data, mime
 
 
-def transcribe_notes(files, timeout: int = GEMINI_TIMEOUT_SECONDS) -> str:
+def pdf_pages_as_images(pdf_path: str, max_pages: int = 40, dpi: int = 110):
+    """Render PDF pages to PNG (bytes, mime) pairs, for PDFs whose text layer is unusable:
+    scans, or Kannada typed in an old non-Unicode font (KTBS textbooks)."""
+    import fitz
+    out = []
+    with fitz.open(pdf_path) as doc:
+        for i in range(min(doc.page_count, max_pages)):
+            out.append((doc[i].get_pixmap(dpi=dpi).tobytes("png"), "image/png"))
+    return out
+
+
+def transcribe_notes(files, timeout: int = GEMINI_TIMEOUT_SECONDS, max_files: int = MAX_FILES) -> str:
     """files: list of (bytes, mime_type). Returns the transcribed text ('' if nothing read)."""
     parts = [OCR_PROMPT]
-    for data, mime in files[:MAX_FILES]:
+    for data, mime in files[:max_files]:
         if mime in IMAGE_TYPES:
             data, mime = _shrink_image(data, mime)
         elif mime != PDF_TYPE:

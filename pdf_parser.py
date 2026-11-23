@@ -108,3 +108,19 @@ def extract_chapter(pdf_path: str) -> dict:
         "clean_text": extract_clean_text(pdf_path),
         "headings": detect_headings(pdf_path),
     }
+
+def looks_like_legacy_kannada(text: str) -> bool:
+    """True when the 'text' is Kannada typed in an old non-Unicode font (Nudi / Baraha).
+
+    Karnataka state (KTBS) textbooks use such fonts: copying the text gives junk like
+    'PÀ£ÁðlPÀ' instead of 'ಕರ್ನಾಟಕ'. Real Kannada has Unicode letters (U+0C80-U+0CFF);
+    this junk has none and is full of accented Latin-1 letters instead (~80% on KTBS books,
+    0% on NCERT English books). Such PDFs must be read from the page images instead.
+    """
+    letters = [c for c in text if c.isalpha()]
+    if len(letters) < 50:
+        return False
+    if any("ಀ" <= c <= "೿" for c in letters):
+        return False
+    latin1 = sum(1 for c in text if " " <= c <= "ÿ")
+    return latin1 / len(letters) > 0.2

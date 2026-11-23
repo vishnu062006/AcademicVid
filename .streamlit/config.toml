@@ -7,3 +7,9 @@ textColor = "#2c2825"
 
 [server]
 maxUploadSize = 25
+
+[client]
+# Teachers should not see the page menu (it would reveal /bmsce) or the
+# developer toolbar ("Deploy" button, settings).
+showSidebarNavigation = false
+toolbarMode = "viewer"
