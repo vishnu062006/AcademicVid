@@ -53,10 +53,15 @@ def save_lesson(key: str, chapter, folder: str = RUNTIME_LESSONS_DIR) -> str:
     return path
 
 
+# Bump when the way videos / PPTs are built changes, so old files are not reused.
+# 2: every slide narrates its own text (slides and voice in sync).
+OUTPUT_FORMAT_VERSION = "2"
+
+
 def output_path(chapter, language: str, kind: str, ext: str) -> str:
     """Where the finished file for this exact lesson lives (it may not exist yet)."""
     content = json.dumps(chapter.model_dump(), ensure_ascii=False, sort_keys=True)
-    key = _sha("|".join((kind, language, content)))
+    key = _sha("|".join((OUTPUT_FORMAT_VERSION, kind, language, content)))
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     return os.path.join(OUTPUT_DIR, "{}_{}.{}".format(kind, key, ext))
 

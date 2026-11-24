@@ -335,6 +335,86 @@ def _slide_misconception(section, subject, path, ctx, lab):
 
 
 # ----------------------------------------------------------------------------
+# What the voice says on each slide.
+#
+# Every slide reads out exactly what is written on it, and stays on screen exactly as
+# long as that takes (video_builder times each picture by its own audio). Earlier one
+# section-long narration was split evenly across the slides, so slides changed while
+# the voice was still talking about something else.
+# ----------------------------------------------------------------------------
+_CLOSING = {"English": "Thank you, students. Keep learning and keep asking questions!",
+            "Kannada": "ಧನ್ಯವಾದಗಳು ಮಕ್ಕಳೇ. ಚೆನ್ನಾಗಿ ಓದಿ, ಪ್ರಶ್ನೆ ಕೇಳುತ್ತಾ ಇರಿ!"}
+_CODE_ON_SCREEN = {"English": "Read the code on the screen carefully.",
+                   "Kannada": "ಪರದೆಯ ಮೇಲಿನ ಕೋಡ್ ಅನ್ನು ಗಮನವಿಟ್ಟು ಓದಿ."}
+
+
+def _say(text) -> str:
+    """Slide text -> something a voice can read: no line breaks, dashes or slashes."""
+    text = re.sub(r"\s*/\s*", ", ", str(text or "").replace("\n", " "))
+    text = re.sub(r"\s+[-\u2013\u2014]\s+", ", ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    if text and text[-1] not in ".!?\u0964:":
+        text += "."
+    return text
+
+
+def _heading(label: str) -> str:
+    return _say(label.rstrip("!:. "))
+
+
+def section_slide_kinds(section) -> list:
+    """The slides of one section, in order (same order as build_section_slides)."""
+    kinds = ["hook", "concept"]
+    if getattr(section, "key_equation", None):
+        kinds.append("equation")
+    return kinds + ["example", "key_points", "misconception"]
+
+
+def slide_scripts(section, subject: str, language: str = "English", last_section: bool = False) -> list:
+    """Spoken text for each slide of this section, in slide order."""
+    lab = get_labels(language, subject)
+    lang = "Kannada" if (language == "Kannada" or subject == "Kannada") else "English"
+    scripts = []
+    for kind in section_slide_kinds(section):
+        if kind == "hook":
+            text = _say(section.title) + " " + _say(section.hook)
+        elif kind == "concept":
+            text = _heading(lab["concept"]) + " " + _say(section.concept)
+        elif kind == "equation":
+            eq = str(section.key_equation or "").strip()
+            if subject == "Computer Science" and "\n" in eq:
+                body = _CODE_ON_SCREEN[lang]
+            else:
+                body = _say(eq)
+            text = _heading(lab["equation"]) + " " + body
+        elif kind == "example":
+            text = _heading(lab["example"]) + " " + _say(section.indian_example)
+        elif kind == "key_points":
+            pts = [_say(p) for p in section.key_points[:5] if str(p).strip()]
+            text = _heading(lab["key_points"]) + " " + " ".join(
+                "{}. {}".format(i + 1, p) for i, p in enumerate(pts))
+        else:
+            text = _heading(lab["misconception"]) + " " + _say(section.misconception)
+            if last_section:
+                text += " " + _CLOSING[lang]
+        scripts.append(text.strip())
+    return scripts
+
+
+def ppt_slide_script(section, subject: str, language: str = "English", last_section: bool = False) -> str:
+    """Spoken text for a section's PPT slide, which shows the title, concept, equation,
+    example and key points (the PPT has one slide per section)."""
+    by_kind = dict(zip(section_slide_kinds(section),
+                       slide_scripts(section, subject, language, last_section=False)))
+    lab = get_labels(language, subject)
+    parts = [_say(section.title),
+             by_kind["concept"].replace(_heading(lab["concept"]), "", 1).strip(),
+             by_kind.get("equation", ""), by_kind["example"], by_kind["key_points"]]
+    if last_section:
+        parts.append(_CLOSING["Kannada" if (language == "Kannada" or subject == "Kannada") else "English"])
+    return " ".join(p for p in parts if p)
+
+
 def build_section_slides(section, subject: str, out_dir: str, language: str = "English",
                          chapter_title: str = "") -> list:
     """Render the slides for one section. Returns the image paths in order.

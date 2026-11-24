@@ -20,9 +20,9 @@ from ai_structuring import (
 from ocr import transcribe_notes, pdf_pages_as_images, MAX_FILES as OCR_MAX_FILES
 from library import resolve_library_pdf, entry_is_available, LibraryDownloadError
 from pdf_parser import looks_like_legacy_kannada
-from slides import build_section_slides
+from slides import build_section_slides, slide_scripts, ppt_slide_script
 from tts import synthesize_many, VOICE_EN, VOICE_KN
-from video_builder import build_lesson_video, join_audio
+from video_builder import build_lesson_video, join_audio, media_duration
 from cache_store import (
     lesson_key, load_lesson, save_lesson, is_ready, prune_outputs, output_path as cached_output,
 )
@@ -942,38 +942,57 @@ def execute_media_generation(output_type: str, session_dir: str) -> None:
                         )
                         for i, section in enumerate(chapter.sections)
                     ]
-                    # All sections are recorded at the same time (and cached), then the
+                    # Each slide reads out its own text, so the picture always matches the
+                    # voice. All clips are recorded at the same time (and cached), then the
                     # whole lesson is encoded in one fast ffmpeg run.
                     status.write(t("status_voice_all", n=total))
-                    audio_paths = synthesize_many(
-                        [section.narration for section in chapter.sections], voice=narration_voice
-                    )
+                    scripts = [
+                        slide_scripts(section, chapter.subject, selected_language,
+                                      last_section=(i == total - 1))
+                        for i, section in enumerate(chapter.sections)
+                    ]
+                    flat = synthesize_many([line for group in scripts for line in group],
+                                           voice=narration_voice)
+                    audio_groups, pos = [], 0
+                    for group in scripts:
+                        audio_groups.append(flat[pos:pos + len(group)])
+                        pos += len(group)
                     status.write(t("status_combining"))
-                    build_lesson_video(list(zip(slide_groups, audio_paths)), final_path)
+                    build_lesson_video(list(zip(slide_groups, audio_groups)), final_path)
                 st.session_state.final_video_path = final_path
 
             elif output_type == "ppt":
                 status.write(t("status_ppt"))
                 path = cached_output(chapter, selected_language, "ppt", "pptx")
+                audio_path = cached_output(chapter, selected_language, "narration", "mp3")
                 if not is_ready(path):
-                    export_chapter_to_pptx(chapter, path, language=selected_language)
-                st.session_state.final_ppt_path = path
-
-                # A separate narration MP3 alongside the PPT. Sections are recorded in
-                # parallel and joined. A narration failure must not invalidate the slides.
-                narrations = [str(getattr(sec, "narration", "") or "").strip() for sec in chapter.sections]
-                narrations = [n for n in narrations if n]
-                if narrations:
+                    # Every slide gets its own voice clip inside the deck: it plays by
+                    # itself and the slide moves on when it ends (Slide Show). The same
+                    # clips joined make the separate narration MP3. If the voice service
+                    # fails, the deck is still made, without sound.
+                    total = len(chapter.sections)
+                    scripts = [chapter.chapter_title] + [
+                        ppt_slide_script(section, chapter.subject, selected_language,
+                                         last_section=(i == total - 1))
+                        for i, section in enumerate(chapter.sections)
+                    ]
+                    clips = seconds = None
                     status.write(t("status_audio", language=language_name))
-                    audio_path = cached_output(chapter, selected_language, "narration", "mp3")
                     try:
-                        if not is_ready(audio_path):
-                            join_audio(synthesize_many(narrations, voice=narration_voice), audio_path)
-                        st.session_state.final_audio_path = audio_path
+                        clips = synthesize_many(scripts, voice=narration_voice)
+                        seconds = [media_duration(c) for c in clips]
+                        join_audio(clips, audio_path)
                     except Exception as audio_exc:
-                        st.session_state.pop("final_audio_path", None)
+                        clips = seconds = None
                         audio_key, audio_params = classify_error(audio_exc)
                         status.write(t("ppt_audio_failed", error=t(audio_key, **audio_params)))
+                    if clips is None:      # don't keep a silent deck for next time
+                        path = os.path.join(session_dir, "lesson_no_audio.pptx")
+                    export_chapter_to_pptx(chapter, path, language=selected_language,
+                                           audio_paths=clips, audio_seconds=seconds)
+                st.session_state.final_ppt_path = path
+                if is_ready(audio_path):
+                    st.session_state.final_audio_path = audio_path
                 else:
                     st.session_state.pop("final_audio_path", None)
 
@@ -1166,6 +1185,7 @@ def render_completion(output_type: str) -> None:
 
         audio_path = st.session_state.get("final_audio_path")
         if audio_path and os.path.exists(audio_path):
+            st.caption(t("ppt_voice_hint"))
             st.markdown(f"#### {t('audio_heading')}")
             st.audio(audio_path)
             audio_language = st.session_state.get(

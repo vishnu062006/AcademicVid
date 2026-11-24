@@ -131,6 +131,7 @@ STRINGS = {
         "status_ppt": "Creating your editable presentation.",
         "status_audio": "Creating {language} narration audio.",
         "ppt_audio_failed": "Presentation is ready, but narration audio could not be generated: {error}",
+        "ppt_voice_hint": "The voice is inside the slides. Open the file in PowerPoint and press Slide Show (F5): each slide reads itself out and moves on by itself.",
         "status_notes": "Formatting your study notes as a PDF.",
         "status_flashcards": "Generating question-and-answer flashcards.",
         "status_ready": "Your resource is ready",
@@ -318,6 +319,7 @@ STRINGS = {
         "status_ppt": "ನಿಮ್ಮ ಸಂಪಾದಿಸಬಹುದಾದ ಪ್ರೆಸೆಂಟೇಶನ್ ತಯಾರಾಗುತ್ತಿದೆ.",  # NEEDS REVIEW
         "status_audio": "{language} ನಿರೂಪಣೆಯ ಆಡಿಯೋ ತಯಾರಾಗುತ್ತಿದೆ.",  # NEEDS REVIEW
         "ppt_audio_failed": "ಪ್ರೆಸೆಂಟೇಶನ್ ಸಿದ್ಧವಾಗಿದೆ, ಆದರೆ ನಿರೂಪಣೆಯ ಆಡಿಯೋ ರಚಿಸಲು ಆಗಲಿಲ್ಲ: {error}",  # NEEDS REVIEW
+        "ppt_voice_hint": "ಧ್ವನಿ ಸ್ಲೈಡ್‌ಗಳ ಒಳಗೇ ಇದೆ. ಫೈಲ್ ಅನ್ನು PowerPoint ನಲ್ಲಿ ತೆರೆದು Slide Show (F5) ಒತ್ತಿ: ಪ್ರತಿ ಸ್ಲೈಡ್ ತಾನೇ ಓದಿ ಮುಂದಿನದಕ್ಕೆ ಹೋಗುತ್ತದೆ.",  # NEEDS REVIEW
         "status_notes": "ನಿಮ್ಮ ಅಧ್ಯಯನ ಟಿಪ್ಪಣಿಗಳನ್ನು PDF ಆಗಿ ರೂಪಿಸಲಾಗುತ್ತಿದೆ.",  # NEEDS REVIEW
         "status_flashcards": "ಪ್ರಶ್ನೆ-ಉತ್ತರ ಫ್ಲ್ಯಾಶ್ ಕಾರ್ಡ್‌ಗಳನ್ನು ರಚಿಸಲಾಗುತ್ತಿದೆ.",  # NEEDS REVIEW
         "status_ready": "ನಿಮ್ಮ ಸಾಮಗ್ರಿ ಸಿದ್ಧವಾಗಿದೆ",  # NEEDS REVIEW

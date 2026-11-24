@@ -162,10 +162,95 @@ def _add_section_slide(prs: Presentation, section, subject: str, language: str =
         p.space_after = Pt(8)
 
 
-def export_chapter_to_pptx(chapter, out_path: str, language: str = "English") -> str:
+# ---------------------------------------------------------------------------
+# Narration inside the deck: every slide carries its own voice clip, which starts by
+# itself when the slide is shown; the slide moves on when the clip ends. So in
+# Slide Show the voice always matches the slide on screen. (A teacher can still click
+# to move on earlier: PowerPoint stops the clip and plays the next slide's.)
+# ---------------------------------------------------------------------------
+_P = "http://schemas.openxmlformats.org/presentationml/2006/main"
+_RT_AUDIO = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/audio"
+_RT_VIDEO = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/video"
+
+_TIMING_XML = """<p:timing xmlns:p="{p}"><p:tnLst><p:par>
+<p:cTn id="1" dur="indefinite" restart="never" nodeType="tmRoot"><p:childTnLst>
+ <p:seq concurrent="1" nextAc="seek"><p:cTn id="2" dur="indefinite" nodeType="mainSeq"><p:childTnLst>
+  <p:par><p:cTn id="3" fill="hold"><p:stCondLst><p:cond delay="indefinite"/>
+   <p:cond evt="onBegin" delay="0"><p:tn val="2"/></p:cond></p:stCondLst><p:childTnLst>
+   <p:par><p:cTn id="4" fill="hold"><p:stCondLst><p:cond delay="0"/></p:stCondLst><p:childTnLst>
+    <p:par><p:cTn id="5" presetID="1" presetClass="mediacall" presetSubtype="0" fill="hold"
+      nodeType="afterEffect"><p:stCondLst><p:cond delay="0"/></p:stCondLst><p:childTnLst>
+     <p:cmd type="call" cmd="playFrom(0.0)"><p:cBhvr><p:cTn id="6" dur="{ms}" fill="hold"/>
+      <p:tgtEl><p:spTgt spid="{spid}"/></p:tgtEl></p:cBhvr></p:cmd>
+    </p:childTnLst></p:cTn></p:par>
+   </p:childTnLst></p:cTn></p:par>
+  </p:childTnLst></p:cTn></p:par>
+ </p:childTnLst></p:cTn>
+ <p:prevCondLst><p:cond evt="onPrev" delay="0"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:prevCondLst>
+ <p:nextCondLst><p:cond evt="onNext" delay="0"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:nextCondLst>
+ </p:seq>
+ <p:audio><p:cMediaNode vol="80000" showWhenStopped="0"><p:cTn id="7" fill="hold" display="0">
+  <p:stCondLst><p:cond delay="indefinite"/></p:stCondLst>
+  <p:endCondLst><p:cond evt="onStopAudio" delay="0"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:endCondLst>
+  </p:cTn><p:tgtEl><p:spTgt spid="{spid}"/></p:tgtEl></p:cMediaNode></p:audio>
+</p:childTnLst></p:cTn></p:par></p:tnLst></p:timing>"""
+
+
+def _speaker_icon_png() -> bytes:
+    """A small speaker picture for the audio clip (only seen while editing)."""
+    import fitz
+    doc = fitz.open()
+    page = doc.new_page(width=64, height=64)
+    page.draw_rect(page.rect, color=None, fill=(1, 1, 1))
+    page.draw_polyline([(10, 24), (22, 24), (36, 12), (36, 52), (22, 40), (10, 40), (10, 24)],
+                       color=None, fill=(0.2, 0.2, 0.2), closePath=True)
+    page.draw_bezier((44, 22), (50, 28), (50, 36), (44, 42), color=(0.2, 0.2, 0.2), width=3)
+    page.draw_bezier((49, 15), (59, 25), (59, 39), (49, 49), color=(0.2, 0.2, 0.2), width=3)
+    png = page.get_pixmap().tobytes("png")
+    doc.close()
+    return png
+
+
+def _attach_narration(prs: Presentation, slide, mp3_path: str, seconds: float) -> None:
+    import io
+    shape = slide.shapes.add_movie(
+        mp3_path, prs.slide_width - Inches(0.6), prs.slide_height - Inches(0.6),
+        Inches(0.4), Inches(0.4), poster_frame_image=io.BytesIO(_speaker_icon_png()),
+        mime_type="audio/mpeg",
+    )
+    # python-pptx only knows video: turn the clip into an audio clip.
+    nvpr = shape._element.nvPicPr.nvPr
+    vfile = nvpr.find(qn("a:videoFile"))
+    rid = vfile.get(qn("r:link"))
+    vfile.tag = qn("a:audioFile")
+    rel = slide.part.rels[rid]
+    if rel.reltype == _RT_VIDEO:
+        rel._reltype = _RT_AUDIO
+        rel.__dict__.pop("reltype", None)      # python-pptx caches the first value read
+    if rel.reltype != _RT_AUDIO:
+        raise RuntimeError("could not mark the narration as audio")
+    old = slide._element.find("{%s}timing" % _P)
+    if old is not None:
+        slide._element.remove(old)
+    ms = max(1, int(round(seconds * 1000)))
+    timing = etree.fromstring(_TIMING_XML.format(p=_P, ms=ms, spid=shape.shape_id))
+    transition = etree.Element("{%s}transition" % _P, advTm=str(ms + 300))
+    # Element order in a slide: cSld, clrMapOvr, transition, timing, extLst
+    anchor = slide._element.find("{%s}clrMapOvr" % _P)
+    if anchor is None:
+        anchor = slide._element.find("{%s}cSld" % _P)
+    anchor.addnext(transition)
+    transition.addnext(timing)
+
+
+def export_chapter_to_pptx(chapter, out_path: str, language: str = "English",
+                           audio_paths=None, audio_seconds=None) -> str:
     """
     Build a .pptx from a Chapter object: one title slide + one slide per
     section (title / concept + indian_example / key_points bullets).
+
+    audio_paths / audio_seconds (optional): one narration mp3 and its length for every
+    slide, title slide first. Each clip is put inside its slide and plays by itself.
 
     Returns out_path.
     """
@@ -177,6 +262,12 @@ def export_chapter_to_pptx(chapter, out_path: str, language: str = "English") ->
 
     for section in chapter.sections:
         _add_section_slide(prs, section, chapter.subject, language)
+
+    if audio_paths:
+        if len(audio_paths) != len(prs.slides) or len(audio_seconds or []) != len(prs.slides):
+            raise ValueError("need one narration clip per slide")
+        for slide, mp3, secs in zip(prs.slides, audio_paths, audio_seconds):
+            _attach_narration(prs, slide, mp3, secs)
 
     prs.save(out_path)
     return out_path

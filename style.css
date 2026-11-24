@@ -254,50 +254,6 @@ div[data-testid="stTextInput"] input:focus, div[data-testid="stTextArea"] textar
 [data-testid="stSidebar"] label { color: var(--text) !important; }
 
 /* =========================================
-   6. RADIO CARDS (OUTPUT SELECTORS)
-========================================= */
-[data-testid="stAppViewBlockContainer"] div[data-testid="stRadio"]:has(input) div[role="radiogroup"] {
-    display: grid !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: 14px !important;
-}
-[data-testid="stAppViewBlockContainer"] div[data-testid="stRadio"] div[role="radiogroup"] > label {
-    box-sizing: border-box !important; width: 100% !important; min-height: 118px !important;
-    padding: 22px 24px !important;
-    border-radius: 16px !important;
-    background: #ffffff !important;
-    border: 1px solid var(--border) !important;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.02) !important;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-}
-[data-testid="stAppViewBlockContainer"] div[data-testid="stRadio"] div[role="radiogroup"] > label:hover {
-    transform: translateY(-4px) !important;
-    border-color: var(--accent) !important;
-    box-shadow: 0 10px 24px rgba(217, 107, 66, 0.1) !important;
-}
-[data-testid="stAppViewBlockContainer"] div[data-testid="stRadio"] div[role="radiogroup"] label:has(input:checked) {
-    border-color: var(--accent) !important;
-    background: var(--accent-soft) !important;
-    box-shadow: 0 0 0 1px var(--accent), 0 8px 24px rgba(217, 107, 66, 0.12) !important;
-}
-
-/* Clean up Streamlit radio elements */
-[data-testid="stAppViewBlockContainer"] div[data-testid="stRadio"] div[role="radiogroup"] > label > div:first-child { display: none !important; }
-[data-testid="stAppViewBlockContainer"] div[data-testid="stRadio"] div[role="radiogroup"] label p {
-    color: var(--text) !important; font-size: 16px !important; font-weight: 600 !important;
-}
-[data-testid="stAppViewBlockContainer"] div[data-testid="stRadio"] div[role="radiogroup"] > label [data-testid="stMarkdownContainer"]::after {
-    display: block !important; margin-top: 7px !important;
-    color: var(--muted) !important; font-size: 13px !important; font-weight: 400 !important;
-}
-
-/* Inject Subtitles safely */
-[data-testid="stAppViewBlockContainer"] div[data-testid="stRadio"] div[role="radiogroup"] > label:nth-child(1) [data-testid="stMarkdownContainer"]::after { content: "Animated lesson with AI narration"; }
-[data-testid="stAppViewBlockContainer"] div[data-testid="stRadio"] div[role="radiogroup"] > label:nth-child(2) [data-testid="stMarkdownContainer"]::after { content: "Editable presentation deck"; }
-[data-testid="stAppViewBlockContainer"] div[data-testid="stRadio"] div[role="radiogroup"] > label:nth-child(3) [data-testid="stMarkdownContainer"]::after { content: "Clean, printable study notes"; }
-[data-testid="stAppViewBlockContainer"] div[data-testid="stRadio"] div[role="radiogroup"] > label:nth-child(4) [data-testid="stMarkdownContainer"]::after { content: "Quick recall and revision cards"; }
-
-/* =========================================
    7. FILE UPLOADER
 ========================================= */
 [data-testid="stFileUploader"] section {
@@ -337,7 +293,6 @@ div[data-testid="stTextInput"] input:focus, div[data-testid="stTextArea"] textar
     .main .block-container { padding: 1rem 1rem 3rem; }
     .hero { padding: 26px 22px; border-radius: 18px; animation: none; }
     .hero-title { font-size: 2.25rem; }
-    [data-testid="stAppViewBlockContainer"] div[data-testid="stRadio"] div[role="radiogroup"] { grid-template-columns: 1fr !important; }
 }
 
 /* =========================================

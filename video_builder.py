@@ -116,8 +116,10 @@ def media_duration(path: str) -> float:
 
 
 def build_lesson_video(sections, out_path: str) -> str:
-    """sections: list of (slide_paths, narration_mp3). Each section's narration is split
-    evenly across its slides (same timing as build_section_video). Returns out_path."""
+    """sections: list of (slide_paths, audio).
+    audio is either a LIST of mp3s, one per slide (each slide stays up exactly as long as
+    its own audio: what is on screen is what is being said), or one mp3 for the whole
+    section, split evenly across its slides (older behaviour). Returns out_path."""
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
     img_list, aud_list = out_path + ".images.txt", out_path + ".audio.txt"
     tmp = out_path + ".part.mp4"
@@ -126,11 +128,19 @@ def build_lesson_video(sections, out_path: str) -> str:
         with open(img_list, "w") as fi, open(aud_list, "w") as fa:
             fi.write("ffconcat version 1.0\n")
             for slide_paths, audio in sections:
-                per_slide = media_duration(audio) / max(1, len(slide_paths))
-                for p in slide_paths:
-                    fi.write("file '{}'\nduration {:.3f}\n".format(_ff_escape(p), per_slide))
+                if isinstance(audio, (list, tuple)):
+                    if len(audio) != len(slide_paths):
+                        raise ValueError("need one audio file per slide")
+                    durations = [media_duration(a) for a in audio]
+                    audios = list(audio)
+                else:
+                    durations = [media_duration(audio) / max(1, len(slide_paths))] * len(slide_paths)
+                    audios = [audio]
+                for p, d in zip(slide_paths, durations):
+                    fi.write("file '{}'\nduration {:.3f}\n".format(_ff_escape(p), d))
                     last_slide = p
-                fa.write("file '{}'\n".format(_ff_escape(audio)))
+                for a in audios:
+                    fa.write("file '{}'\n".format(_ff_escape(a)))
             # ffmpeg ignores the last duration unless the last picture is listed again
             if last_slide:
                 fi.write("file '{}'\n".format(_ff_escape(last_slide)))
